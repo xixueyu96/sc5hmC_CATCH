@@ -233,5 +233,43 @@ ggsave(
   width = 8, height = 8
 )
 
+## cross-omics correlation
+mc_mtx <- read.table(
+  "data/processed/mC.genebody_mtx.tsv",
+  header = T, stringsAsFactors = F
+)
+hmc_mtx <- read.table(
+  "data/processed/hmC.genebody_mtx.tsv",
+  header = T, stringsAsFactors = F
+)
+rna_mtx <- read.table(
+  "data/processed/RNA.genebody_mtx.tsv",
+  header = T, stringsAsFactors = F
+)
 
+plot_df <- inner_join(
+  mc_mtx, hmc_mtx,
+  by = c("gene"),
+  suffix = c("_mC", "_hmC")) %>%
+  inner_join(
+    rna_mtx %>%
+      rename_with(
+        .fn = function(.x) {
+          paste0(.x, "_rna")},
+        .cols = -c(gene)),
+    by = c("gene" = "gene")
+  )
 
+cor_matrix <- plot_df %>%
+  filter(gene %in% neg_genes) %>%
+  dplyr::select(starts_with("Two")) %>%
+  filter(`Two.cell_rna` > 0) %>%
+  cor(method = "spearman")
+
+corrplot::corrplot(
+  cor_matrix,
+  type = "lower",
+  method = "square",
+  addCoef.col = "black",
+  tl.col = "black", tl.srt = 45
+)
