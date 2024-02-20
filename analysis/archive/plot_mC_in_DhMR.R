@@ -2,9 +2,10 @@ library(magrittr)
 library(dplyr)
 library(ggplot2)
 
+plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+
 mc_df <- read.table(
-  "DHMR/WGBS_GSR.5000_1X.merged.bed",
-  # "/mnt/f/Project/sc5hmC/data/DHMR/mC_ratio_matrix.txt",
+  "data/source/WGBS_GSR.5000_1X.merged.bed",
   header = T, stringsAsFactors = F
 )
 
@@ -32,6 +33,8 @@ plot_5mc_5hmC_ratio <- function(stage_pair){
     mutate(ratio_5hmC = log2((meth_g2) / (meth_g1) )) %>% ## 5hmC
     mutate(ratio_5mC = log2((get(pro_stage)) / (get(pre_stage)) )) ## 5mC
 
+  gc()
+
   # library(ggpubr)
 
   fill_pal <- c("stable"="grey", "decreasing"="#74b1d8", "increasing"="#df6c77")
@@ -57,19 +60,21 @@ plot_5mc_5hmC_ratio <- function(stage_pair){
   p2 <- ggExtra::ggMarginal(plot1, groupColour = TRUE, groupFill = TRUE)
   print(p2)
 
+  plot_time <- strsplit(as.character(Sys.time()), " ")[[1]][1]
+
   ggsave(
     plot = p2, width = 5, height = 5, units = "in", dpi=320,
-    filename = paste0("DhMR_5mC_ratio.WGBS_GSR.1221.", gsub("->", "to", stage_pair), ".pdf")
+    filename = paste(
+      "viz/DhMR_5mC_ratio.WGBS_GSR",
+      plot_time,
+      gsub("->", "to", stage_pair),
+      "pdf", sep = ".")
   )
 
   cor_res <- cor.test(tmp_df$ratio_5hmC, tmp_df$ratio_5mC)
   print(cor_res)
 
 }
-
-lapply(
-  c("2C->4C"), plot_5mc_5hmC_ratio
-)
 
 lapply(
   c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
