@@ -29,6 +29,7 @@ export_gr <- function(x, fn){
 mm10_cpg_gr <- build_annotations(genome = 'mm10', annotations = "mm10_cpgs")
 mm10_gene_gr <- build_annotations(genome = 'mm10', annotations = "mm10_basicgenes")
 mm10_enhancer_gr <- build_annotations(genome = 'mm10', annotations = "mm10_enhancers_fantom")
+mm10_intergene_gr <- build_annotations(genome = 'mm10', annotations = "mm10_genes_intergenic")
 
 # R1 mESC line
 ab_gr <- import("data/public/4DNFI9685Y2G.bw")
@@ -40,28 +41,10 @@ ab_gr <- sort(ab_gr)
 export_gr(mm10_cpg_gr, fn = "data/public/mm10.CpGs.bed")
 export_gr(mm10_gene_gr, fn = "data/public/mm10.gene.bed")
 export_gr(mm10_enhancer_gr, fn = "data/public/mm10.enhancer.bed")
+export_gr(mm10_intergene_gr, fn = "data/public/mm10.intergenic.bed")
 export_gr(ab_gr, fn = "data/public/mm10.AB_compart.bed")
 
-## H3K9me3
-h3k9me3_gr <- readBed("data/processed/H3K9me3_GSR.broadPeak.stable.bed")
 
-hotspot_hit <- findOverlaps(hotspot_gr, h3k9me3_gr)
-control_hit <- findOverlaps(control_gr, h3k9me3_gr)
-
-chi_input <- matrix(c(
-  length(hotspot_hit@from),
-  length(control_hit@from),
-  length(hotspot_gr) - length(hotspot_hit@from),
-  length(control_gr) - length(control_hit@from)
-), nrow = 2)
-rownames(chi_input) <- c("hotspot_hit", "control")
-colnames(chi_input) <- c("hit", "not_hit")
-
-chisq.test(chi_input)
-
-chi_input[1,1]*chi_input[2,2]/(chi_input[1,2]*chi_input[2,1])
-
-## repeat
 run_lola <- function(x, control_region=c("matched", "genomic_tile")){
 
   regionDB <- loadRegionDB(
@@ -129,6 +112,7 @@ run_lola <- function(x, control_region=c("matched", "genomic_tile")){
   )
 }
 
+## repeat
 run_lola("rmsk_gene", "matched")
 run_lola("rmsk_LINE", "matched")
 run_lola("rmsk_LTR", "matched")
@@ -137,16 +121,11 @@ run_lola("rmsk_LTR", "matched")
 ## genomic elements
 run_lola("annotatr", "matched")
 
-locResults <- readRDS("data/processed/hotspot.lola_annotatr.2024-02-19.rds")
+locResults <- readRDS("data/processed/hotspot.lola_annotatr.2024-02-20.rds")
 
 pal <- wesanderson::wes_palette("Zissou1")
-#
-# locResults$annot.group <- factor(
-#   locResults$annot.group,
-#   levels = c("genes", "cpg", "enhancer", "encode3Ren")
-# )
 
-group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren"))
+group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren", "embryo"))
 
 locResults %<>%
   tidyr::separate(
@@ -163,8 +142,10 @@ locResults$annot.type <- factor(
 
 locResults %>%
   filter(annot.type!="fantom") %>%
+  filter(annot.type!="H3K9me3") %>%
   ggplot(aes(
     x = annot.type,
+    # y = log(oddsRatio),
     y = oddsRatio,
     fill = annot.group)) +
   geom_bar(
@@ -173,17 +154,41 @@ locResults %>%
     width = .8,
     alpha = .7)+
   coord_flip() +
-  scale_fill_manual(values = pal[c(1,3,5,7)]) +
+  scale_fill_manual(values = c(pal[c(1,3,5)],"#a288ec")) +
   # geom_hline(
   #   yintercept = c(0.5, 1, 1.5),
   #   color="white", size=2) +
+  # ylim(c(-2.5, 2.5)) +
   geom_hline(
     yintercept = 1,
-    color="black",
-    linetype="longdash") +
+    linetype="longdash",
+    color="black") +
   theme_classic()
 
 ggsave(
-  "viz/hotspot.lola_annotatr.2024-02-19.pdf",
+  "viz/hotspot.lola_annotatr.2024-02-20.pdf",
   width = 5, height = 6
 )
+
+## H3K9me3
+h3k9me3_gr <- LOLA::readBed("data/processed/H3K9me3_GSR.broadPeak.stable.bed")
+
+hotspot_hit <- findOverlaps(hotspot_gr, h3k9me3_gr)
+control_hit <- findOverlaps(control_gr, h3k9me3_gr)
+
+chi_input <- matrix(c(
+  length(hotspot_hit@from),
+  length(control_hit@from),
+  length(hotspot_gr) - length(hotspot_hit@from),
+  length(control_gr) - length(control_hit@from)
+), nrow = 2)
+rownames(chi_input) <- c("hotspot_hit", "control")
+colnames(chi_input) <- c("hit", "not_hit")
+
+chisq.test(chi_input)
+
+chi_input[1,1]*chi_input[2,2]/(chi_input[1,2]*chi_input[2,1])
+
+
+
+
