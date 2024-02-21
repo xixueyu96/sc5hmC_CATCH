@@ -6,33 +6,35 @@ library(ggplot2)
 library(ggridges)
 
 ## load input
-chr_windows <- readRDS("data/processed/mm10.CpG_density.win1k.noN.rds")
+chr_windows <- readRDS("data/handmade/mm10.CpG_density.win1k.noN.rds")
+df_5hmC <- readRDS("data/processed/mouse_embryo.5hmC.1X50.aim.1kb.rds")
+df_5hmC_5mC_nor <- readRDS("data/processed/mouse_embryo.5hmC_5mC_nor.1X50.aim.1kb.rds")
 
-df_5hmC <-
-  fread(
-    "data/processed/mouse_embryo.5hmC.1X50.aim.1kb.230104.bed",
-    header = T,
-    stringsAsFactors = F
-  )
-df_5hmC_5mC_nor <-
-  fread(
-    "data/processed/mouse_embryo.5hmC_5mC_nor.1X50.aim.1kb.230104.bed",
-    header = T,
-    stringsAsFactors = F
-  )
+# df_5hmC <-
+#   fread(
+#     "data/processed/mouse_embryo.5hmC.1X50.aim.1kb.230104.bed",
+#     header = T,
+#     stringsAsFactors = F
+#   )
+# df_5hmC_5mC_nor <-
+#   fread(
+#     "data/processed/mouse_embryo.5hmC_5mC_nor.1X50.aim.1kb.230104.bed",
+#     header = T,
+#     stringsAsFactors = F
+#   )
 
 df_5hmC %<>% filter(end %in% df_5hmC_5mC_nor$end)
-df_5hmC_5mC_nor %<>% mutate(start = start + 1)
+# df_5hmC_5mC_nor %<>% mutate(start = start + 1)
 
 stage_list <- colnames(df_5hmC) %>% .[4:length(.)]
-colnames(df_5hmC_5mC_nor) <- c("chrom", "start", "end", stage_list)
+# colnames(df_5hmC_5mC_nor) <- c("chrom", "start", "end", stage_list)
 
 ## plot 5hmC
 
 df_5hmC %<>%
-  inner_join(chr_windows %>% as.data.table(),
-             by=c("chrom"="seqnames",
-                  "start"="start","end"="end")) %>%
+  inner_join(
+    chr_windows %>% as.data.table(),
+    by=c("seqnames", "start"="start","end"="end")) %>%
   mutate(
     cpg_density = case_when(
       cpg_density >= 0.08 ~ 0.08,
@@ -52,8 +54,8 @@ df_5hmC_long <- df_5hmC %>%
 df_5hmC_long$variable <- factor(
   df_5hmC_long$variable,
   levels = c(
-    "Oocyte", "Sperm", "Zygote",
-    "2C", "4C", "8C",
+    "Oocyte", "Sperm", "early_zygote",
+    "late_zygote", "2C", "4C", "8C",
     "Morula", "Blast")
 )
 
@@ -71,7 +73,7 @@ df_5hmC_long %>%
         axis.title = element_text(vjust = 0))
 
 ggsave(
-  "viz/Fig3C.5hmC.240217.pdf",
+  "viz/Fig3C.5hmC.240221.pdf",
   width = 27.5,
   height = 24,
   units = "cm"
@@ -82,8 +84,7 @@ ggsave(
 df_5hmC_5mC_nor %<>%
   inner_join(
     chr_windows %>% as.data.table,
-    by=c("chrom"="seqnames",
-         "start"="start","end"="end")) %>%
+    by=c("seqnames", "start"="start","end"="end")) %>%
   mutate(
     cpg_density = case_when(
       cpg_density >= 0.08 ~ 0.08,
@@ -94,6 +95,8 @@ df_5hmC_5mC_nor %<>%
     breaks = seq(0, 0.08, 0.01),
     include.lowest = T))
 
+stage_list <- colnames(df_5hmC_5mC_nor) %>% .[4:11]
+
 df_5hmC_5mC_nor_long <- df_5hmC_5mC_nor %>%
   dplyr::select(.i_window, cpg_density_bin, stage_list) %>%
   reshape2::melt(id.var=c(".i_window", "cpg_density_bin")) %>%
@@ -102,7 +105,7 @@ df_5hmC_5mC_nor_long <- df_5hmC_5mC_nor %>%
 df_5hmC_5mC_nor_long$variable <- factor(
   df_5hmC_5mC_nor_long$variable,
   levels = c(
-    "Oocyte", "Sperm", "Zygote",
+    "Oocyte", "Sperm", "ZY",
     "2C", "4C", "8C",
     "Morula", "Blast")
 )
@@ -122,7 +125,7 @@ df_5hmC_5mC_nor_long %>%
         axis.title = element_text(vjust = 0))
 
 ggsave(
-  "viz/Fig3C.5hmC_5mC_nor.240217.pdf",
+  "viz/Fig3C.5hmC_5mC_nor.240221.pdf",
   width = 27.5,
   height = 24,
   units = "cm"
@@ -152,7 +155,7 @@ cor_test_with_CpG_density <- function(x, dataset){
 cor_res_5hmC <- do.call(
   "rbind",
   lapply(
-    stage_list,
+    colnames(df_5hmC) %>% .[4:12],
     cor_test_with_CpG_density,
     df_5hmC)
 )
@@ -161,7 +164,7 @@ cor_res_5hmC
 
 write.table(
   cor_res_5hmC,
-  file = "publish/Fig3C.5hmC_cor_test.240217.tsv",
+  file = "publish/Fig3C.5hmC_cor_test.240221.tsv",
   col.names = T, row.names = F,
   sep = "\t", quote = F
 )
@@ -169,7 +172,7 @@ write.table(
 cor_res_5hmC_5mC_nor <- do.call(
   "rbind",
   lapply(
-    stage_list,
+    colnames(df_5hmC_5mC_nor) %>% .[4:11],
     cor_test_with_CpG_density,
     df_5hmC_5mC_nor)
 )
@@ -178,7 +181,7 @@ cor_res_5hmC_5mC_nor
 
 write.table(
   cor_res_5hmC,
-  file = "publish/Fig3C.5hmC_5mC_nor.cor_test.240217.tsv",
+  file = "publish/Fig3C.5hmC_5mC_nor.cor_test.240221.tsv",
   col.names = T, row.names = F,
   sep = "\t", quote = F
 )
