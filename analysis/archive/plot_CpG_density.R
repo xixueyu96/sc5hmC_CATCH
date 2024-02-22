@@ -37,12 +37,12 @@ df_5hmC %<>%
     by=c("seqnames", "start"="start","end"="end")) %>%
   mutate(
     cpg_density = case_when(
-      cpg_density >= 0.08 ~ 0.08,
-      cpg_density <= 0.03 ~ 0.03,
+      cpg_density > 0.08 ~ 0.08,
+      cpg_density < 0.03 ~ 0.03,
       TRUE ~ cpg_density)) %>%
   mutate(cpg_density_bin = cut(
     cpg_density,
-    breaks = seq(0.03, 0.08, 0.01),
+    breaks = seq(0, 0.09, 0.01),
     include.lowest = T))
 # hist(df_5hmC$`2C` %>% .[.<0.1], breaks = 100)
 
@@ -60,7 +60,7 @@ df_5hmC_long$variable <- factor(
 )
 
 df_5hmC_long %>%
-  dplyr::filter(value <=as.numeric(quantile(df_5hmC_long$value, probs = c(0.99)))) %>%
+  # dplyr::filter(value <=as.numeric(quantile(df_5hmC_long$value, probs = c(0.99)))) %>%
   dplyr::filter(value > 0) %>%
   ggplot(aes(x = value, y = cpg_density_bin, group=cpg_density_bin)) +
   geom_density_ridges(scale = 1, rel_min_height = 0.01,fill="#80B1D3") +
@@ -87,12 +87,12 @@ df_5hmC_5mC_nor %<>%
     by=c("seqnames", "start"="start","end"="end")) %>%
   mutate(
     cpg_density = case_when(
-      cpg_density >= 0.08 ~ 0.08,
-      cpg_density <= 0.03 ~ 0.03,
+      cpg_density > 0.08 ~ 0.08,
+      cpg_density < 0.03 ~ 0.03,
       TRUE ~ cpg_density)) %>%
   mutate(cpg_density_bin = cut(
     cpg_density,
-    breaks = seq(0, 0.08, 0.01),
+    breaks = seq(0, 0.09, 0.01),
     include.lowest = T))
 
 stage_list <- colnames(df_5hmC_5mC_nor) %>% .[4:11]
@@ -111,7 +111,7 @@ df_5hmC_5mC_nor_long$variable <- factor(
 )
 
 df_5hmC_5mC_nor_long %>%
-  dplyr::filter(value <=as.numeric(quantile(df_5hmC_5mC_nor_long$value, probs = c(0.99)))) %>%
+  # dplyr::filter(value <=as.numeric(quantile(df_5hmC_5mC_nor_long$value, probs = c(0.99)))) %>%
   dplyr::filter(value > 0) %>%
   # ggplot(aes(x=value, y=cpg_density)) +
   ggplot(aes(x = value/100, y = cpg_density_bin, group=cpg_density_bin)) +
@@ -140,7 +140,8 @@ cor_test_with_CpG_density <- function(x, dataset){
     probs = 0.99)
 
   tmp <- dataset %>%
-    filter(get(x) <= upper_limit & get(x) > 0) %>%
+    # filter(get(x) <= upper_limit & get(x) > 0) %>%
+    filter(get(x) > 0) %>%
     # filter(get(x) <= upper_limit) %>%
     dplyr::select(x, cpg_density) %>%
     as.data.frame()
@@ -180,7 +181,7 @@ cor_res_5hmC_5mC_nor <- do.call(
 cor_res_5hmC_5mC_nor
 
 write.table(
-  cor_res_5hmC,
+  cor_res_5hmC_5mC_nor,
   file = "publish/Fig3C.5hmC_5mC_nor.cor_test.240221.tsv",
   col.names = T, row.names = F,
   sep = "\t", quote = F
