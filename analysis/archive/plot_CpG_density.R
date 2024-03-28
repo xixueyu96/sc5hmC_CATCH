@@ -131,6 +131,42 @@ ggsave(
   units = "cm"
 )
 
+## plot TET3 cKO
+df_tet_cko_5hmC <- readRDS("data/processed/early_zygote.1kb_cpg_density.rds")
+
+df_tet_cko_5hmC %<>%
+  as.data.frame() %>%
+  # filter(met+unmet >=3) %>%
+  mutate(
+    cpg_density = case_when(
+      cpg_density > 0.08 ~ 0.08,
+      cpg_density < 0.03 ~ 0.03,
+      TRUE ~ cpg_density)) %>%
+  mutate(cpg_density_bin = cut(
+    cpg_density,
+    breaks = seq(0, 0.09, 0.01),
+    include.lowest = T))
+# hist(df_5hmC$`2C` %>% .[.<0.1], breaks = 100)
+
+df_tet_cko_5hmC %>%
+  # ggplot(aes(x=value, y=cpg_density)) +
+  ggplot(aes(x = met_ratio, y = cpg_density_bin, group=cpg_density_bin)) +
+  geom_density_ridges(scale = 1, rel_min_height = 0.01,fill="#80B1D3") +
+  # facet_wrap(.~variable, scales = "free_y") +
+  labs(y="CpG density",x="5hmCpG level") +
+  theme_bw(base_size = 15)+
+  theme_ridges()+
+  theme(strip.background = element_blank(),
+        aspect.ratio = 1,
+        axis.title = element_text(vjust = 0))
+
+ggsave(
+  "viz/early_zygote.1kb_cpg_density.240328.pdf",
+  width = 10,
+  height = 10,
+  units = "cm"
+)
+
 ## stat
 cor_test_with_CpG_density <- function(x, dataset){
 

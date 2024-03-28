@@ -13,7 +13,8 @@ levels <- c(
   "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"
 )
 
-plot_dt <- merge_DHMR_lfc("data/source/metilene_out/",cmp_list, "5k", min_lfc = 1)
+plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+# plot_dt <- merge_DHMR_lfc("data/source/metilene_out/",cmp_list, "5k", min_lfc = 1)
 p2 <- plot_DHMR.frac.stable(plot_dt, save_file=F, level=rev(levels))
 p2 <- p2+theme(axis.text.y = element_blank())
 p1 <- plot_DHMR.abs.stable(plot_dt, save_file=F, level=rev(levels))

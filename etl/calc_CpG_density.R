@@ -99,4 +99,60 @@ hist_df <- hist(chr_noN_windows$cpg_density, breaks = 100)
 ## save binned cpg_density
 saveRDS(chr_noN_windows, file = "data/processed/mm10.CpG_density.win1k.noN.rds")
 
+## --------------CpG density around detected site----------------------
+
+calc_cpg_density_center <- function(hmC_bed, out_fn){
+  require(GenomicRanges)
+  require(data.table)
+  require(dplyr)
+
+  window_size <- 1000
+
+  # tet_cpg_dt <- fread("cut -f 1,3-5 data/source/TET3_cKO_site/TET3_KO_2C.1X50.aim.bed") %>%
+  #   mutate(V5=V2) %>% setNames(c("seqnames", "start", "met", "total", "end"))
+  # cmd <- paste0("cut -f 1,3-5 ", hmC_bed)
+  all_cpg <- readRDS("data/handmade/mm10.CpG.rds")
+
+  tet_cpg_dt <- fread(hmC_bed) %>% mutate(V2=V3) %>%
+    setNames(c("seqnames", "start", "end", "met", "unmet")) %>% filter(met > 0)
+  tet_cpg_gr <- makeGRangesFromDataFrame(tet_cpg_dt, keep.extra.columns = T)
+  tet_cpg_gr$met_ratio <- tet_cpg_gr$met/(tet_cpg_gr$unmet + tet_cpg_gr$met)
+  # n_gr <- readRDS("data/handmade/mm10.Ns.rds")
+
+  tet_window <- resize(tet_cpg_gr, width = window_size, fix = "center")
+
+  ## from jzh @ biubiu-1s
+  seqlevels(tet_cpg_gr)
+  # seqlevels(chr_window)
+  seqlevels(tet_window)
+
+  all_cpg <- sort(all_cpg)
+  # chr_window <- sort(chr_window)
+  tet_window <- sort(tet_window)
+
+  hits <- findOverlaps(all_cpg, tet_window)
+
+  gc()
+
+  hits_rle <- rle(hits@to)
+  tet_window$cpg_density <- 0
+  tet_window$cpg_density[hits_rle$values] <- hits_rle$lengths/window_size
+
+  gc()
+
+  saveRDS(tet_window, out_fn)
+}
+
+calc_cpg_density_center(
+  "data/source/TET3_cKO_site/TET3_KO_2C.1X50.aim.bed",
+  "data/processed/TET3_KO_2C.1kb_cpg_density.rds"
+)
+calc_cpg_density_center(
+  "data/source/TET3_cKO_site/TET3_KO_EZ.1X50.aim.bed",
+  "data/processed/TET3_KO_EZ.1kb_cpg_density.rds"
+)
+calc_cpg_density_center(
+  "data/source/TET3_cKO_site/TET3_KO_LZ.1X50.aim.bed",
+  "data/processed/TET3_KO_LZ.1kb_cpg_density.rds"
+)
 
