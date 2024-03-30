@@ -273,3 +273,153 @@ corrplot::corrplot(
   addCoef.col = "black",
   tl.col = "black", tl.srt = 45
 )
+
+## enrichedheatmap
+library(EnrichedHeatmap)
+library(rtracklayer)
+
+genes <- fread("data/public/mm10.gencode.p4.protein_coding.bed") %>%
+  setNames(c("seqnames", "start", "end", "ensembl", "symbol", "strand")) %>%
+  distinct(symbol, .keep_all = TRUE) %>%
+  filter(symbol %in% c(pos_genes, neg_genes)) %>%
+  mutate(
+    cor = case_when(
+      symbol %in% pos_genes ~ "pos",
+      symbol %in% neg_genes ~ "neg"),
+    seqnames = paste0("chr", seqnames)) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T) %>%
+  .[seqnames(.) %in% paste0("chr", c(1:19, "X", "Y", "MT")),]
+genes
+
+tss <- promoters(genes, upstream = 0, downstream = 1)
+tss[1:5]
+
+line_col <- c("pos"="#e51d17", "neg"="#3d51a2")
+
+top_anno <- HeatmapAnnotation(lines = anno_enriched(gp = gpar(col = line_col)))
+
+pol2_E2C <- import("data/public/GSM4010570_2cell_early_RP_rep1.mm10.bw")
+pol2_E2C
+
+mat1 <-  normalizeToMatrix(
+  pol2_E2C, tss, value_column = "score",
+  extend = 3000, mean_mode = "w0", w = 50,
+  keep = c(0, 0.99)
+)
+mat1
+rm(pol2_E2C)
+
+ht1 <- EnrichedHeatmap(
+  mat1, col = c("white", "darkgreen"),
+  name = "PolII_E",
+  top_annotation = top_anno,
+  row_split = tss$cor,
+  column_title = "PolII in early 2C",
+  width=unit(4,"cm"),
+  heatmap_legend_param = list(
+    direction = "horizontal",
+    border = "black",
+    legend_height = unit(4, "cm")
+  )
+)
+
+
+pol2_L2C <- import("data/public/GSM4010572_2cell_late_RP_rep1.mm10.bw")
+pol2_L2C
+
+mat2 <-  normalizeToMatrix(
+  pol2_L2C, tss, value_column = "score",
+  extend = 3000, mean_mode = "w0", w = 50,
+  keep = c(0, 0.99)
+)
+mat2
+rm(pol2_L2C)
+
+ht2 <- EnrichedHeatmap(
+  mat2, col = c("white", "orange"),
+  name = "PolII_L",
+  top_annotation = top_anno,
+  row_split = tss$cor,
+  column_title = "PolII in late 2C",
+  width=unit(4,"cm"),
+  heatmap_legend_param = list(
+    direction = "horizontal",
+    border = "black",
+    legend_height = unit(4, "cm")
+  )
+)
+
+h3k36me3 <- import("data/public/Late_2C_H3K36me3.bw")
+h3k36me3
+
+mat4 <-  normalizeToMatrix(
+  h3k36me3, genes, value_column = "score",
+  extend = 3000, mean_mode = "w0", w = 50,
+  keep = c(0, 0.99)
+)
+mat4
+rm(h3k36me3)
+
+ht4 <- EnrichedHeatmap(
+  mat4, col = c("white", "blue"),
+  name = "H3K36me3",
+  top_annotation = top_anno,
+  row_split = tss$cor,
+  column_title = "H3K36me3 in 2C",
+  width=unit(4,"cm"),
+  heatmap_legend_param = list(
+    direction = "horizontal",
+    border = "black",
+    legend_height = unit(4, "cm")
+  )
+)
+
+h3k27me3 <- import("data/public/GSM2082673_2cell.H3K27me3.1.bedGraph")
+h3k27me3
+
+mat5 <-  normalizeToMatrix(
+  h3k27me3, genes, value_column = "score",
+  extend = 3000, mean_mode = "w0", w = 50,
+  keep = c(0, 0.99)
+)
+mat5
+rm(h3k27me3)
+
+ht5 <- EnrichedHeatmap(
+  mat5, col = c("white", "red"),
+  name = "H3K27me3",
+  top_annotation = top_anno,
+  row_split = tss$cor,
+  column_title = "H3K27me3 in 2C",
+  width=unit(4,"cm"),
+  heatmap_legend_param = list(
+    direction = "horizontal",
+    border = "black",
+    legend_height = unit(4, "cm")
+  )
+)
+
+lgd <- Legend(at = names(line_col), title = "Genes",
+             type = "lines", legend_gp = gpar(col = line_col))
+
+# cgi <- import("data/public/mm10.CGI.bed.gz")
+#
+# mat_cgi <- normalizeToMatrix(cgi, tss, mean_mode = "absolute")
+#
+# ht <- EnrichedHeatmap(
+#   mat_cgi, col = c("white", "orange"), name = "CGI",
+#   top_annotation = top_anno,
+#   row_split = tss$cor,
+#   column_title = "H3K4me3 in 2C",
+#   width=unit(5,"cm")
+# )
+
+pdf("viz/Gene_wise_cor.heatmap.240330.pdf",
+    width = 8, height = 8)
+draw(
+  ht1 + ht2 + ht4 + ht5,
+  annotation_legend_list = list(lgd),
+  ht_gap = unit(c(7,7,7), "mm"),
+  heatmap_legend_side = "bottom"
+)
+dev.off()
