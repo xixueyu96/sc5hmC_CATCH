@@ -277,6 +277,7 @@ corrplot::corrplot(
 ## enrichedheatmap
 library(EnrichedHeatmap)
 library(rtracklayer)
+library(data.table)
 
 genes <- fread("data/public/mm10.gencode.p4.protein_coding.bed") %>%
   setNames(c("seqnames", "start", "end", "ensembl", "symbol", "strand")) %>%
@@ -316,13 +317,16 @@ ht1 <- EnrichedHeatmap(
   row_split = tss$cor,
   column_title = "PolII in early 2C",
   width=unit(4,"cm"),
+  use_raster=T,
+  raster_resize_mat=mean,
+  raster_quality = 3,
   heatmap_legend_param = list(
-    direction = "horizontal",
+    # direction = "horizontal",
     border = "black",
-    legend_height = unit(4, "cm")
+    legend_height = unit(2, "cm")
   )
 )
-
+ht1
 
 pol2_L2C <- import("data/public/GSM4010572_2cell_late_RP_rep1.mm10.bw")
 pol2_L2C
@@ -342,10 +346,13 @@ ht2 <- EnrichedHeatmap(
   row_split = tss$cor,
   column_title = "PolII in late 2C",
   width=unit(4,"cm"),
+  use_raster=T,
+  raster_resize_mat=mean,
+  raster_quality = 3,
   heatmap_legend_param = list(
-    direction = "horizontal",
+    # direction = "horizontal",
     border = "black",
-    legend_height = unit(4, "cm")
+    legend_height = unit(2, "cm")
   )
 )
 
@@ -367,10 +374,13 @@ ht4 <- EnrichedHeatmap(
   row_split = tss$cor,
   column_title = "H3K36me3 in 2C",
   width=unit(4,"cm"),
+  use_raster=T,
+  raster_resize_mat=mean,
+  raster_quality = 3,
   heatmap_legend_param = list(
-    direction = "horizontal",
+    # direction = "horizontal",
     border = "black",
-    legend_height = unit(4, "cm")
+    legend_height = unit(2, "cm")
   )
 )
 
@@ -392,10 +402,13 @@ ht5 <- EnrichedHeatmap(
   row_split = tss$cor,
   column_title = "H3K27me3 in 2C",
   width=unit(4,"cm"),
+  use_raster=T,
+  raster_resize_mat=mean,
+  raster_quality = 3,
   heatmap_legend_param = list(
-    direction = "horizontal",
+    # direction = "horizontal",
     border = "black",
-    legend_height = unit(4, "cm")
+    legend_height = unit(2, "cm")
   )
 )
 
@@ -415,11 +428,11 @@ lgd <- Legend(at = names(line_col), title = "Genes",
 # )
 
 pdf("viz/Gene_wise_cor.heatmap.240330.pdf",
-    width = 8, height = 8)
+    width = 10, height = 8)
 draw(
   ht1 + ht2 + ht4 + ht5,
   annotation_legend_list = list(lgd),
   ht_gap = unit(c(7,7,7), "mm"),
-  heatmap_legend_side = "bottom"
+  heatmap_legend_side = "right"
 )
 dev.off()
