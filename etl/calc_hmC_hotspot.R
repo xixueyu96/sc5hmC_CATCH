@@ -29,6 +29,12 @@ calc_hotspot_signal <- function(fn_in, fn_out){
   merged_gr <- sort(merged_gr)
 
   saveRDS(merged_gr, file = paste0("data/processed/", fn_out))
+
+  write.table(
+    merged_gr[,"region"] %>% as.data.frame,
+    file = paste0("data/processed/",gsub("rds", "bed", fn_out)),
+    col.names = T, row.names = F, sep = "\t", quote = F
+  )
 }
 
 calc_hotspot_signal(

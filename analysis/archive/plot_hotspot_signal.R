@@ -1,11 +1,11 @@
 
-plot_hotspot_hmC <- function(x, y_axis_title, plot_name){
+plot_hotspot_hmC <- function(hotspot_rds, y_axis_title, plot_name){
 
   require(dplyr)
   require(ggplot2)
   require(ggridges)
 
-  merged_gr <- readRDS(x)
+  merged_gr <- readRDS(hotspot_rds)
 
   region_pal <- c("hotspot"="#7ca9d5", "matched"="#e7df68", "other"="#e5545b")
 

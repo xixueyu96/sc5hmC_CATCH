@@ -297,9 +297,78 @@ tss[1:5]
 
 line_col <- c("pos"="#e51d17", "neg"="#3d51a2")
 
-top_anno <- HeatmapAnnotation(lines = anno_enriched(gp = gpar(col = line_col)))
+rna_mtx <- fread("data/public/GSE71434_FPKM_stage.txt.gz", header = T) %>%
+  filter(`#Gene` %in% c(pos_genes, neg_genes)) %>%
+  mutate(
+    cor = case_when(
+      `#Gene` %in% pos_genes ~ "pos",
+      `#Gene` %in% neg_genes ~ "neg"))
 
-pol2_E2C <- import("data/public/GSM4010570_2cell_early_RP_rep1.mm10.bw")
+Heatmap(
+  rna_mtx %>% select(PN5_zygote, `2cell_early`,`2cell_late`),
+  # col = c("white", "darkgreen"),
+  name = "PolII_E",
+  # top_annotation = top_anno,
+  row_split = rna_mtx$cor,
+  column_title = "PolII in PN5",
+  width=unit(4,"cm"),
+  cluster_rows = F,
+  cluster_columns = F,
+  # use_raster=T,
+  # raster_resize_mat=mean,
+  raster_quality = 3,
+  heatmap_legend_param = list(
+    # direction = "horizontal",
+    border = "black",
+    legend_height = unit(2, "cm")
+  )
+)
+
+top_anno <- HeatmapAnnotation(lines = anno_enriched(gp = gpar(col = rev(line_col))))
+
+
+top_anno_pol <- HeatmapAnnotation(
+  lines = anno_enriched(
+    gp = gpar(col = rev(line_col)),
+    ylim = c(0,8),
+    axis_param = list(
+    side = "right",
+    at = seq(2,8,2),
+    labels = seq(2,8,2))
+  )
+)
+
+ref <- import("data/public/GSM1845268_2cell_late_K4me3_rep1.bed")
+ref$score <- as.numeric(ref$name)
+
+mat0 <-  normalizeToMatrix(
+  ref, tss, value_column = "score",
+  extend = 3000, mean_mode = "absolute", w = 50,
+  keep = c(0, 0.99)
+)
+mat0
+
+# rm(ref)
+
+ht0 <- EnrichedHeatmap(
+  mat0, col = c("white", "orange"),
+  name = "H3K4me3",
+  top_annotation = top_anno,
+  row_split = tss$cor,
+  column_title = "H3K4me3(L2C)",
+  width=unit(4,"cm"),
+  use_raster=T,
+  raster_resize_mat=mean,
+  raster_quality = 3,
+  heatmap_legend_param = list(
+    # direction = "horizontal",
+    border = "black",
+    legend_height = unit(2, "cm")
+  )
+)
+ht0
+
+pol2_E2C <- import("data/public/GSM4010568_PN5_RP_rep1.mm10.bw")
 pol2_E2C
 
 mat1 <-  normalizeToMatrix(
@@ -308,14 +377,19 @@ mat1 <-  normalizeToMatrix(
   keep = c(0, 0.99)
 )
 mat1
+
+pol2_E_col_fun <- circlize::colorRamp2(
+  c(0, max(mat1)), c("white", "darkgreen")
+)
+
 rm(pol2_E2C)
 
 ht1 <- EnrichedHeatmap(
-  mat1, col = c("white", "darkgreen"),
-  name = "PolII_E",
-  top_annotation = top_anno,
+  mat1, col = pol2_E_col_fun,
+  name = "PolII_ZY",
+  top_annotation = top_anno_pol,
   row_split = tss$cor,
-  column_title = "PolII in early 2C",
+  column_title = "PolII(PN5)",
   width=unit(4,"cm"),
   use_raster=T,
   raster_resize_mat=mean,
@@ -328,7 +402,7 @@ ht1 <- EnrichedHeatmap(
 )
 ht1
 
-pol2_L2C <- import("data/public/GSM4010572_2cell_late_RP_rep1.mm10.bw")
+pol2_L2C <- import("data/public/GSM4010570_2cell_early_RP_rep1.mm10.bw")
 pol2_L2C
 
 mat2 <-  normalizeToMatrix(
@@ -340,11 +414,11 @@ mat2
 rm(pol2_L2C)
 
 ht2 <- EnrichedHeatmap(
-  mat2, col = c("white", "orange"),
-  name = "PolII_L",
-  top_annotation = top_anno,
+  mat2, col = pol2_E_col_fun,
+  name = "PolII_L2C",
+  top_annotation = top_anno_pol,
   row_split = tss$cor,
-  column_title = "PolII in late 2C",
+  column_title = "PolII(L2C)",
   width=unit(4,"cm"),
   use_raster=T,
   raster_resize_mat=mean,
@@ -355,6 +429,7 @@ ht2 <- EnrichedHeatmap(
     legend_height = unit(2, "cm")
   )
 )
+ht1 + ht2
 
 h3k36me3 <- import("data/public/Late_2C_H3K36me3.bw")
 h3k36me3
@@ -372,7 +447,7 @@ ht4 <- EnrichedHeatmap(
   name = "H3K36me3",
   top_annotation = top_anno,
   row_split = tss$cor,
-  column_title = "H3K36me3 in 2C",
+  column_title = "H3K36me3(L2C)",
   width=unit(4,"cm"),
   use_raster=T,
   raster_resize_mat=mean,
@@ -400,7 +475,7 @@ ht5 <- EnrichedHeatmap(
   name = "H3K27me3",
   top_annotation = top_anno,
   row_split = tss$cor,
-  column_title = "H3K27me3 in 2C",
+  column_title = "H3K27me3(2C)",
   width=unit(4,"cm"),
   use_raster=T,
   raster_resize_mat=mean,
@@ -427,12 +502,12 @@ lgd <- Legend(at = names(line_col), title = "Genes",
 #   width=unit(5,"cm")
 # )
 
-pdf("viz/Gene_wise_cor.heatmap.240330.pdf",
-    width = 10, height = 8)
+pdf("viz/Gene_wise_cor.heatmap.240402.pdf",
+    width = 12, height = 6)
 draw(
-  ht1 + ht2 + ht4 + ht5,
+  ht1 + ht2 + ht0 + ht4 + ht5,
   annotation_legend_list = list(lgd),
-  ht_gap = unit(c(7,7,7), "mm"),
+  ht_gap = unit(c(10,10,10,10), "mm"),
   heatmap_legend_side = "right"
 )
 dev.off()
