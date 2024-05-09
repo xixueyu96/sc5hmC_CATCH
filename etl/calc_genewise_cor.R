@@ -106,3 +106,4 @@ gene_gr$cpg_density[hits_rle$values] <- hits_rle$lengths/width(gene_gr)[hits_rle
 saveRDS(gene_gr, file = "data/handmade/mm10.genebody.rds")
 
 gc()
+

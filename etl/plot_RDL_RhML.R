@@ -80,18 +80,20 @@ plot_RDL.v2 <- function(plot_dt, save_file=T, level=input_level){
   require(ggplot2)
   require(dplyr)
   require(scales)
+  require(RColorBrewer)
 
   rdl_dt <- plot_dt %>%
-    filter(category=="decreasing") %>%
+    # filter(category=="decreasing") %>%
+    filter(meth_g1-meth_g2 > 0) %>%
     mutate(RDL=(meth_g1-meth_g2)/meth_g1) %>%
     # mutate(RDL=meth_g2/meth_g1) %>%
-    mutate(RDL_bin=cut(RDL, breaks=seq(0,1,0.1), include.lowest=T)) %>%
+    mutate(RDL_bin=cut(RDL, breaks=seq(0,1,0.2), include.lowest=T)) %>%
     group_by(cmp,RDL_bin) %>%
     summarise(RDL_bin_n =n())
 
   rdl_dt$cmp <- factor(rdl_dt$cmp, levels = level)
 
-  col_list <- colorRampPalette(brewer.pal(n = 5, name =  "YlGnBu"))(length(unique(rdl_dt$RDL_bin)))
+  col_list <- colorRampPalette(brewer.pal(n = 3, name =  "YlGnBu"))(length(unique(rdl_dt$RDL_bin)))
   # p <- rdl_dt %>%
   #   ggplot(aes(x=" ", y=RDL_bin_n, fill=RDL_bin))+
   #   geom_bar(position="fill", stat="identity", width = .8)+
@@ -135,12 +137,14 @@ plot_RhML.v2 <- function(plot_dt, save_file=T, level=input_level){
   require(ggplot2)
   require(dplyr)
   require(scales)
+  require(RColorBrewer)
 
   rdl_dt <- plot_dt %>%
-    filter(category=="increasing") %>%
+    # filter(category=="increasing") %>%
+    filter(meth_g2-meth_g1 > 0) %>%
     mutate(RDL=(meth_g2-meth_g1)/meth_g2) %>%
     # mutate(RDL=meth_g1/meth_g2) %>%
-    mutate(RhML_bin=cut(RDL, breaks=seq(0,2,0.25), include.lowest=T)) %>%
+    mutate(RhML_bin=cut(RDL, breaks=seq(0,1,0.2), include.lowest=T)) %>%
     group_by(cmp,RhML_bin) %>%
     summarise(RDL_bin_n =n())
 

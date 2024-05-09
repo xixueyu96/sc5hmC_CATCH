@@ -30,23 +30,30 @@ plot_5mc_5hmC_ratio <- function(stage_pair){
 
   tmp_df %<>%
     filter(get(pre_stage)>0 & meth_g1>0 & meth_g2 > 0 & get(pro_stage) >0) %>%
-    mutate(ratio_5hmC = log2((meth_g2) / (meth_g1) )) %>% ## 5hmC
-    mutate(ratio_5mC = log2((get(pro_stage)) / (get(pre_stage)) )) ## 5mC
+    mutate(
+      ratio_5hmC = log2((meth_g2) / (meth_g1) ), ## 5hmC
+      ratio_5mC = log2((get(pro_stage)) / (get(pre_stage)) )) %>% ## 5mC
+    mutate(
+      demeth = case_when(
+      ratio_5hmC > -1 & ratio_5mC < -1 ~ "active_de",
+      TRUE ~ "other")
+    )
 
   gc()
 
   # library(ggpubr)
 
   fill_pal <- c("stable"="grey", "decreasing"="#74b1d8", "increasing"="#df6c77")
+  fill_pal <- c("other"="grey", "active_de"="#df6c77")
 
   plot1 <- ggplot(tmp_df, aes(x = ratio_5hmC, y = ratio_5mC, color = category)) +
-    geom_point(aes(color = category), size = NA, shape=21) +
-    geom_density2d(aes(color=category), size=1) +
+    geom_point(aes(color = demeth), size = 0.1, shape=21) +
+    # geom_density2d(aes(color=demeth), size=1) +
     # geom_rug() +
     # geom_hline(yintercept = log2(1+1), linetype="longdash") +
-    geom_hline(yintercept = log2(1), linetype="longdash") +
+    geom_hline(yintercept = log2(0.5), linetype="longdash") +
     # geom_vline(xintercept = c(log2(1.5), log2(3)), linetype="longdash") +
-    geom_vline(xintercept = log2(1), linetype="longdash") +
+    geom_vline(xintercept = log2(0.5), linetype="longdash") +
     labs(y="logFC of 5mC", x="logFC of 5hmC") +
     scale_color_manual(values = fill_pal) +
     ylim(c(-2.5,2.5)) +

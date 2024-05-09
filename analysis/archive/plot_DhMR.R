@@ -3,8 +3,8 @@ source("etl/merge_DHMR_lfc.R")
 source("etl/plot_DHMR.frac.R")
 source("etl/plot_RDL_RhML.R")
 
-type_col_list <- c("stable"="#a9caec","changing"="#4a7bb7")
-category_col_list <- c("increasing"="#f16c78","decreasing"="#74bbe7")
+type_col_list <- c("stable"="#329cc8","changing"="#f6bb46")
+category_col_list <- c("increasing"="#ee6300","decreasing"="#97ca5b")
 
 cmp_list <- c("Sperm","LZY","2C","4C","8C","Morula")
 names(cmp_list) <- c("EZY","2C","4C","8C","Morula", "Blast")
@@ -13,8 +13,11 @@ levels <- c(
   "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"
 )
 
-plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
 # plot_dt <- merge_DHMR_lfc("data/source/metilene_out/",cmp_list, "5k", min_lfc = 1)
+# saveRDS(plot_dt, file = "data/processed/DhMR.sc_5k.rds")
+
+plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+
 p2 <- plot_DHMR.frac.stable(plot_dt, save_file=F, level=rev(levels))
 p2 <- p2+theme(axis.text.y = element_blank())
 p1 <- plot_DHMR.abs.stable(plot_dt, save_file=F, level=rev(levels))
@@ -22,19 +25,29 @@ p4 <- plot_DHMR.frac.changing(plot_dt, save_file=F, level=rev(levels))
 p4 <- p4+theme(axis.text.y = element_blank())
 p3 <- plot_DHMR.abs.changing(plot_dt, save_file=F, level=rev(levels))
 p3 <- p3+theme(axis.text.y = element_blank())
+
+pdf("viz/Fig4B.DhMR.5k.pdf", width = 10, height = 4)
+egg::ggarrange(p1,p2,p3,p4,nrow = 1)
+dev.off()
+
+# ggsave("viz/Fig4B.DhMR.5k.pdf", width = 27.5, height = 24, units = "cm")
+
+
 p5 <- plot_RDL.v2(plot_dt, save_file=F, level=rev(levels))
-p5 <- p5+theme(axis.text.y = element_blank())
+# p5 <- p5+theme(axis.text.y = element_blank())
 p6 <- plot_RhML.v2(plot_dt, save_file=F, level=rev(levels))
 p6 <- p6+theme(axis.text.y = element_blank())
-egg::ggarrange(p1,p2,p3,p4,p5,p6,nrow = 1)
 
-saveRDS(plot_dt, file = "data/processed/DhMR.sc_5k.rds")
+pdf("viz/FigS4A.RhML_RDhML.5k.pdf", width = 5, height = 5)
+egg::ggarrange(p5,p6,nrow = 1)
+dev.off()
 
+
+##---------------------plot 5hmC abundance in WT and TETcKO late zygote and 2-cell---------------------
 LZto2C <- plot_dt %>% filter(cmp=="LZY->2C") %>%
   mutate(start = end - 5000) %>%
   select(chr, start, end, category)
 
-## plot 5hmC abundance in WT and TETcKO late zygote and 2-cell
 options(scipen=999)
 write.table(
   LZto2C, file = "data/processed/LZYto2C.DhmR.sc_5k.bed",
