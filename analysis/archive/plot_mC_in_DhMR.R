@@ -47,8 +47,10 @@ plot_5mc_5hmC_ratio <- function(stage_pair){
   fill_pal <- c("other"="grey", "active_de"="#df6c77")
 
   plot1 <- ggplot(tmp_df, aes(x = ratio_5hmC, y = ratio_5mC, color = category)) +
-    geom_point(aes(color = demeth), size = 0.1, shape=21) +
+    # geom_point(aes(color = demeth), size = 0.1, shape=21) +
+    geom_point(aes(color = category), size = 0.1, shape=21) +
     # geom_density2d(aes(color=demeth), size=1) +
+    geom_density2d(aes(color=category), size=1) +
     # geom_rug() +
     # geom_hline(yintercept = log2(1+1), linetype="longdash") +
     geom_hline(yintercept = log2(0.5), linetype="longdash") +
