@@ -90,6 +90,11 @@ ggsave(
 
 ## gene length
 gene_gr <- readRDS("data/handmade/mm10.genebody.rds")
+gene_gr$gene_cor <- case_when(
+  gene_gr$gene %in% pos_genes ~ "pos",
+  gene_gr$gene %in% neg_genes ~ "neg",
+  TRUE ~ "no_sig"
+)
 
 plot_df <- inner_join(
   gene_cor_res,
@@ -114,6 +119,261 @@ ggsave(
   "viz/Gene_wise_cor.CpGdensity_length.240217.pdf",
   width = 10, height = 5
 )
+
+##----------------------------jaccard index with public ref--------------------------------
+
+## Replication time
+library(data.table)
+library(GenomicRanges)
+library(karyoploteR)
+
+jaccard_score <- function(set1, set2) {
+  # intersection <- IRanges::intersect(set1, set2)
+  # union <- IRanges::union(set1, set2)
+  intersection <- sum(width(intersect(set1, set2)))
+  union <- sum(width(union(set1, set2)))
+  # union <- sum(width(set1))
+  return(intersection / (union-intersection))
+  # return(length(intersection)/length(union))
+}
+#
+# jaccard_score <- function(set1, set2) {
+#   require(gUtils)
+#
+#   set1 <- sort(set1)
+#   set2 <- sort(set2)
+#
+#   return(
+#     set1 %O% set2
+#   )
+# }
+
+rt_mesc_gr <- fread("data/public/GSE95091_46C_repli-seq_mm10_log_ratio_scaled.bedGraph.gz", header = F) %>%
+  setNames(c("chr", "start", "end", "rt")) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T)
+
+gene_gr <- sort(gene_gr)
+rt_mesc_gr <- sort(rt_mesc_gr)
+
+rt_mesc_gr$zone <- case_when(
+  rt_mesc_gr$rt > 0 ~ "early",
+  rt_mesc_gr$rt < 0 ~ "late"
+)
+
+library(gUtils)
+
+rt_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], rt_mesc_gr[rt_mesc_gr$zone=="early"])
+print(rt_pos)
+rt_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], rt_mesc_gr[rt_mesc_gr$zone=="early"])
+print(rt_neg)
+
+# wilcox.test(rt_pos, rt_neg)
+#
+# plot_df <- data.frame(
+#   value = c(rt_pos, rt_neg),
+#   group = c(rep("pos", length(rt_pos)), rep("neg", length(rt_neg))))
+#
+# plot_df %>%
+#   ggplot(aes(x=group, y=value)) +
+#   # geom_col(stat = "identity", position = position_dodge2(), alpha=0.7) +
+#   geom_violin(aes(fill=group), scale = "width") +
+#   # facet_wrap(.~group, scales = "free", nrow = 2) +
+#   labs(y="Fraction of overlapping") +
+#   scale_fill_manual(values = c("pos"="#e51d17", "neg"="#3d51a2"))+
+#   theme_classic2() +
+#   theme(aspect.ratio = 2,
+#         axis.title.x = element_blank(),
+#         axis.text.x = element_blank(),
+#         strip.background = element_blank(),
+#         axis.ticks.x = element_blank())
+
+
+# hit <- findOverlaps(gene_gr, rt_mesc_gr)
+#
+# gene_gr$rt <- NA
+# gene_gr$rt[sort(unique(hit@from))] <- rt_mesc_gr[hit@to] %>%
+#   as.data.frame() %>%
+#   mutate(from_hit = hit@from) %>%
+#   group_by(from_hit) %>%
+#   summarise(rt_avg=median(rt,na.rm=T)) %>%
+#   arrange(from_hit) %>%
+#   pull(rt_avg)
+
+# gene_gr %>%
+#   as.data.frame() %>%
+#   dplyr::select(gene_cor, rt) %>%
+#   # reshape2::melt(id.var="group") %>%
+#   filter(gene_cor!="no_sig") %>%
+#   ggplot(aes(x=gene_cor, y=rt))+
+#   geom_violin(aes(color=gene_cor)) +
+#   geom_boxplot(aes(color=gene_cor), outlier.shape = NA, size=1, width=.3) +
+#   scale_color_manual(values = c("pos"="#e51d17", "neg"="#3d51a2", "no_sig"="grey30")) +
+#   ggpubr::stat_compare_means(comparisons = list(c("pos", "neg"))) +
+#   # facet_wrap(.~variable, scale="free_y") +
+#   egg::theme_presentation()+
+#   theme(aspect.ratio = 1.2)
+
+# rt_2cell <- fread("data/public/GSE218365_ICM_EmbryoJul2022_binary.txt.gz", header = T)
+# rt_2cell$start <- rt_2cell$POS + 1
+# rt_2cell$end <- rt_2cell$POS + 50000
+# rt_2cell$CHR <- paste0("chr", rt_2cell$CHR)
+# rt_gr <- makeGRangesFromDataFrame(rt_2cell[,c("CHR", "start", "end")], keep.extra.columns = T)
+# rt_gr$rt <- rt_2cell %>% dplyr::select(-POS, -CHR, -start, -end) %>% rowMeans(na.rm = T)
+
+
+## PMD
+pmd_gr <- fread(
+  "data/public/PMD_coordinates_mm10.bed.gz",
+  header = F, stringsAsFactors = F) %>%
+  setNames(c("chr", "start", "end", "score", "type", "iscommonPMD")) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T)
+
+pmd_gr <- pmd_gr[!is.na(pmd_gr$type) & pmd_gr$iscommonPMD == "commonPMD"]
+
+
+# Calculate Jaccard similarity score
+pmd_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], pmd_gr)
+print(pmd_pos)
+pmd_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], pmd_gr)
+print(pmd_neg)
+
+wilcox.test(pmd_pos, pmd_neg)
+
+## LAD
+lad_gr <- fread(
+  "data/public/GSE112551_RAW/GSM3488353_ICM_LmnB1_pop.1_OE_100kb_non-allelic.bedgraph.gz",
+  header = F, stringsAsFactors = F) %>%
+  setNames(c("chr", "start", "end", "score")) %>%
+  mutate(
+    type = case_when(
+      score >= median(score) ~ "LAD",
+      TRUE ~ "nonLAD")) %>%
+  filter(type=="LAD") %>%
+  # filter(score > 0) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T)
+
+lad_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], lad_gr)
+print(lad_pos)
+lad_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], lad_gr)
+print(lad_neg)
+
+wilcox.test(lad_pos, lad_neg)
+
+## A&B
+library(rtracklayer)
+ab_gr <- import("data/public/4DNFI9685Y2G.bw", format = "bigwig")
+ab_gr <- ab_gr[!is.na(ab_gr$score)]
+ab_gr <- sort(ab_gr)
+
+# hit <- findOverlaps(gene_gr, ab_gr)
+#
+# gene_gr$ab <- NA
+# gene_gr$ab[sort(unique(hit@from))] <- ab_gr[hit@to] %>%
+#   as.data.frame() %>%
+#   mutate(from_hit = hit@from) %>%
+#   group_by(from_hit) %>%
+#   summarise(ab_avg=mean(score,na.rm=T)) %>%
+#   arrange(from_hit) %>%
+#   pull(ab_avg)
+#
+#
+# gene_gr %>%
+#   as.data.frame() %>%
+#   dplyr::select(gene_cor, ab) %>%
+#   # reshape2::melt(id.var="group") %>%
+#   filter(gene_cor!="no_sig") %>%
+#   ggplot(aes(x=gene_cor, y=ab))+
+#   geom_violin(aes(color=gene_cor)) +
+#   geom_boxplot(aes(color=gene_cor), outlier.shape = NA, size=1, width=.3) +
+#   scale_color_manual(values = c("pos"="#e51d17", "neg"="#3d51a2", "no_sig"="grey30")) +
+#   ggpubr::stat_compare_means(comparisons = list(c("pos", "neg"))) +
+#   # facet_wrap(.~variable, scale="free_y") +
+#   egg::theme_presentation()+
+#   theme(aspect.ratio = 1.2)
+
+ab_gr$compart <- case_when(
+  ab_gr$score > 0 ~ "A",
+  ab_gr$score < 0 ~ "B"
+)
+
+a_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], ab_gr[ab_gr$compart=="A"])
+print(a_pos)
+a_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], ab_gr[ab_gr$compart=="A"])
+print(a_neg)
+
+b_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], ab_gr[ab_gr$compart=="B"])
+print(b_pos)
+b_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], ab_gr[ab_gr$compart=="B"])
+print(b_neg)
+
+wilcox.test(b_pos, b_neg)
+
+## LINE & SINE
+line_gr <- fread(
+  "../../Packages/LOLACore/mm10/rmsk_family/regions/mm10.L1.bed",
+  header = F, stringsAsFactors = F) %>%
+  setNames(c("chr", "start", "end", "name")) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T)
+
+l1_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], line_gr)
+print(l1_pos)
+l1_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], line_gr)
+print(l1_neg)
+
+sine_gr <- fread(
+  "../../Packages/LOLACore/mm10/rmsk_family/regions/mm10.Alu.bed",
+  header = F, stringsAsFactors = F) %>%
+  setNames(c("chr", "start", "end", "name")) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T)
+
+alu_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], sine_gr)
+print(alu_pos)
+alu_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], sine_gr)
+print(alu_neg)
+
+wilcox.test(alu_pos, alu_neg)
+
+## heterochromatin
+
+het_gr <- fread(
+  "../../Packages/LOLACore/mm10/annotatr/regions/mm10.encode3Ren_Hc-H.bed",
+  header = F, stringsAsFactors = F) %>%
+  setNames(c("chr", "start", "end", "name", "strand")) %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T)
+
+het_pos <- jaccard_score(gene_gr[gene_gr$gene_cor=="pos"], het_gr)
+print(het_pos)
+het_neg <- jaccard_score(gene_gr[gene_gr$gene_cor=="neg"], het_gr)
+print(het_neg)
+
+wilcox.test(het_pos, het_neg)
+
+## summary
+
+plot_df <- data.frame(
+  group = c("early_RTzone", "PMD", "LAD", "A_compart", "B_compart", "L1", "Alu", "Heterochromatin"),
+  pos = c(rt_pos, pmd_pos, lad_pos, a_pos, b_pos, l1_pos, alu_pos, het_pos),
+  neg = c(rt_neg, pmd_neg, lad_neg, a_neg, b_neg, l1_neg, alu_neg, het_neg)) %>%
+  reshape2::melt(id.var="group")
+
+plot_df$group <- factor(
+  plot_df$group,
+  levels = c("early_RTzone", "Heterochromatin", "A_compart", "B_compart", "PMD", "LAD", "L1", "Alu")
+)
+
+plot_df %>%
+  ggplot(aes(x=group, y=value, fill=variable))+
+  geom_col(stat = "identity", position = position_dodge2(), alpha=0.7) +
+  facet_wrap(.~group, scales = "free", nrow = 2) +
+  labs(y="Fraction of overlapping") +
+  scale_fill_manual(values = c("pos"="#e51d17", "neg"="#3d51a2"))+
+  theme_classic2() +
+  theme(aspect.ratio = 2,
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        strip.background = element_blank(),
+        axis.ticks.x = element_blank())
+
 
 ## H3K36me3
 k36_mtx <- lapply(
