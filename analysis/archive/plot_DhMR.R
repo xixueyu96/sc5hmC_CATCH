@@ -42,6 +42,9 @@ pdf("viz/FigS4A.RhML_RDhML.5k.pdf", width = 5, height = 5)
 egg::ggarrange(p5,p6,nrow = 1)
 dev.off()
 
+##---------------------find active demethylated region & annotate---------------------
+
+
 
 ##---------------------plot 5hmC abundance in WT and TETcKO late zygote and 2-cell---------------------
 LZto2C <- plot_dt %>% filter(cmp=="LZY->2C") %>%

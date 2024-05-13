@@ -4,6 +4,11 @@ library(ggplot2)
 library(cowplot)
 library(ggpubr)
 
+## Fig3E by SCAN-seq
+
+
+## FigS3A by SCAN-seq
+
 if(F) {
   gene_list <- c("Tet1", "Tet2", "Tet3", "Tdg", "Dnmt1", "Uhrf1", "Dnmt3a", "Dnmt3b", "Dnmt3l")
 
@@ -15,7 +20,7 @@ if(F) {
 
   VlnPlot(mouse_preim, features = gene_list, group.by = "Stage")
 
-  ## FigS3A by SCAN-seq
+
   df3 <- mouse_preim@assays$RNA@data %>%
     as.matrix() %>% .[gene_list, ] %>%
     reshape2::melt() %>%
