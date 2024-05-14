@@ -5,6 +5,61 @@ library(cowplot)
 library(ggpubr)
 
 ## Fig3E by SCAN-seq
+if(F) {
+  gse_path <- "/mnt/f/Project/sc5hmC/data/ref/total_RNA/expr_mtx/mm10/repeat_GSR/"
+
+  merge2 <- function(x,y)base::merge(x,y,by=c("Geneid"),all=T)
+
+  rna_mtx <- lapply(
+    list.files(gse_path, full.names = T),
+    function(x){
+      df <- read.table(x, header = T) %>% dplyr::select(-Length)
+      colnames(df)[2] <- strsplit(colnames(df)[2], "[.]")[[1]][1]
+      df[,2] <- df[,2]/sum(df[,2])*1e4
+      return(df)}) %>%
+    purrr::reduce(merge2)
+
+  ## names repeats in family L1, L2, Alu and MIR
+  repeat_name <- readRDS("data/processed/mm10.repeat_name.rds")
+
+  plot_mtx <- rna_mtx %>%
+    mutate(
+      repeat_class = case_when(
+        Geneid %in% repeat_name$L1 ~ "L1",
+        Geneid %in% repeat_name$L2 ~ "L2",
+        Geneid %in% repeat_name$Alu ~ "Alu",
+        Geneid %in% repeat_name$MIR ~ "MIR",
+        Geneid %in% repeat_name$ERVL ~ "ERVL",
+        Geneid %in% repeat_name$ERVK ~ "ERVK",
+        TRUE ~ "Others")) %>%
+    filter(repeat_class!="Others") %>%
+    reshape2::melt(
+      id.vars = c("Geneid", "repeat_class"),
+      variable.name = "sample",
+      value.name = "count") %>%
+    tidyr::separate(
+      col = "sample",
+      into = c("srr", "stage"),
+      sep = "_")
+
+  stage_level <- c("2C", "4C", "8C", "Morula", "ICM", "TE")
+  repeat_level <- c('L1', 'L2', 'Alu', 'MIR', 'ERVL', 'ERVK')
+
+  plot_mtx$stage <- factor(plot_mtx$stage, levels = stage_level)
+  plot_mtx$repeat_class <- factor(plot_mtx$repeat_class, levels = repeat_level)
+
+  plot_mtx %>%
+    group_by(repeat_class, stage) %>%
+    summarise(stage_avg = mean(count)) %>%
+    ggplot(aes(x=stage, y=log1p(stage_avg), group = repeat_class)) +
+    geom_line() +
+    facet_wrap(.~ repeat_class, scales = "free") +
+    theme_classic2(base_size = 20) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+}
+
+
 
 
 ## FigS3A by SCAN-seq
