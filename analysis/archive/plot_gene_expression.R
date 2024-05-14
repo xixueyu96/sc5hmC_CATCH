@@ -4,7 +4,7 @@ library(ggplot2)
 library(cowplot)
 library(ggpubr)
 
-## Fig3E by SCAN-seq
+## Fig3E by totalRNA-seq
 if(F) {
   gse_path <- "/mnt/f/Project/sc5hmC/data/ref/total_RNA/expr_mtx/mm10/repeat_GSR/"
 
@@ -42,11 +42,34 @@ if(F) {
       into = c("srr", "stage"),
       sep = "_")
 
-  stage_level <- c("2C", "4C", "8C", "Morula", "ICM", "TE")
+  stage_level <- c("M2","2C", "4C", "8C", "Morula", "ICM", "TE")
   repeat_level <- c('L1', 'L2', 'Alu', 'MIR', 'ERVL', 'ERVK')
 
   plot_mtx$stage <- factor(plot_mtx$stage, levels = stage_level)
   plot_mtx$repeat_class <- factor(plot_mtx$repeat_class, levels = repeat_level)
+
+  plot_mtx %>%
+    filter(Geneid=="MERVL-int") %>%
+    group_by(Geneid,stage) %>%
+    summarise(stage_avg = mean(count)) %>%
+    ggplot(aes(x=stage, y=log1p(stage_avg))) +
+    geom_line(aes(group=Geneid)) +
+    labs(title = "MERVL-int") +
+    theme_classic2(base_size = 20) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+  plot_mtx %>%
+    filter(Geneid=="IAPEY3-int") %>%
+    group_by(Geneid,stage) %>%
+    summarise(stage_avg = mean(count)) %>%
+    ggplot(aes(x=stage, y=log1p(stage_avg))) +
+    geom_line(aes(group=Geneid)) +
+    labs(title = "IAPEY3-int") +
+    theme_classic2(base_size = 20) +
+    theme(strip.background = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
 
   plot_mtx %>%
     group_by(repeat_class, stage) %>%
@@ -57,10 +80,120 @@ if(F) {
     theme_classic2(base_size = 20) +
     theme(strip.background = element_blank(),
           axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
 }
 
+## Fig3E by SCAN-seq
+if(F){
 
+  library(Seurat)
 
+  orig_path <- "/mnt/f/Project/sc5hmC/data/ref"
+
+  te_ref <- Rgb::read.gtf(file.path(orig_path, "mm10_rmsk_TE.gtf"), attr = "split")
+  te_mtx <- read.table(
+    file.path(orig_path, "/scan-seq/data/TE/Mouse_preimplant.scTE_exclusive.3cell.tsv"),
+    header = T, row.names = 1, stringsAsFactors = F
+  )
+  common_te <- intersect(rownames(te_mtx), te_ref$transcript_id)
+  te_mtx <- te_mtx[common_te,]
+
+  te.seu.obj <- CreateSeuratObject(
+    te_mtx, meta.data = meta_df,
+    min.cells = 3, min.features = 3
+  )
+  te.seu.obj <- NormalizeData(te.seu.obj)
+
+  # meta_df <- data.frame(cell_id=colnames(te_mtx), row.names = colnames(te_mtx))
+  #
+  # meta_df$parent <- case_when(
+  #   grepl("C57", meta_df$cell_id) ~"mat",
+  #   grepl("DBA", meta_df$cell_id) ~"pat"
+  # )
+  # meta_df$stage <- gsub("X", "", sapply(strsplit(meta_df$cell_id, "_"), "[[",1))
+
+  te.seu.obj$stage <- factor(
+    te.seu.obj$stage,
+    levels = c("M2", "E2C", "L2C", "4C", "8C", "Morula", "ICM","TE")
+  )
+
+  saveRDS(te.seu.obj, file = "data/processed/mouse_prei.SCANseq_mm10.te_seu.rds")
+
+}
+
+if(F){
+  library(dplyr)
+  library(Seurat)
+  library(ggpubr)
+  library(cowplot)
+
+  orig_path <- "/mnt/f/Project/sc5hmC/data/ref"
+
+  ## annotations
+  te_ref <- Rgb::read.gtf(file.path(orig_path, "mm10_rmsk_TE.gtf"), attr = "split")
+
+  te.seu.obj <- readRDS("data/processed/mouse_prei.SCANseq_mm10.te_seu.rds")
+
+  select_family <- c("L1", "L2","Alu", "MIR", "ERVK", "ERVL")
+  names(select_family) <- c("LINE", "SINE", "LTR")
+
+  # select_family <- c("MERVL.int", "IAPEY3.int")
+
+  for (x in select_family) {
+    te_expr.mtx <- te.seu.obj@assays$RNA@data %>% as.matrix()
+    transcript_id <- te_ref %>% filter(family_id==x) %>%
+      mutate(rename=gsub("_", "-",transcript_id))
+    transcript_id <- intersect(transcript_id$rename, rownames(te.seu.obj))
+    te.seu.obj[[x]] <- colMeans(te.seu.obj@assays$RNA@data[transcript_id,], na.rm = T)
+  }
+
+  todo_index <- 1:length(select_family)
+  line_fun <- function(x){
+    # g <- gene_list[x]
+    p <- te.seu.obj@meta.data[,c("stage", "parent",select_family[x])] %>%
+      ggline(
+        x = "stage",
+        y = select_family[x],
+        color="parent",size=1,
+        add = "mean_se")+
+      labs(y="Expression level", title=select_family[x])+
+      theme(axis.title.x = element_blank(),
+            legend.position = "top",
+            axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1),
+            plot.title = element_text(hjust = 0.5, face = "italic"))
+    return(p)
+  }
+
+  p_list <- lapply(todo_index, line_fun)
+  do.call("plot_grid", c(p_list,byrow=FALSE))
+
+  out_df <- te.seu.obj@meta.data[,4:ncol(te.seu.obj@meta.data)]
+  write.table(
+    te.seu.obj@meta.data,
+    file = "/mnt/f/Project/sc5hmC/manuscript/Fig2B.RNA_data.txt",
+    col.names = T, row.names = F, quote = F, sep = "\t"
+  )
+}
+
+## Fig3E by HIT-scISOseq
+if(F) {
+ plot_df <- read.table("data/public/HIT-scISOseq.MERVL-int.txt", header = T)
+
+ # 16cell     32cell      4cell      8cell blastocyst         E2        ESC         L2     oocyte     Zygote
+
+ plot_df$stage <- factor(
+   plot_df$stage,
+   levels = c("ESC","oocyte", "Zygote", "E2", "L2", "4cell", "8cell", "16cell", "32cell", "blastocyst")
+ )
+
+ plot_df %>%
+   ggplot(aes(x=stage, y=log2CPM)) +
+   geom_boxplot() +
+   labs(title = "MERVL-int") +
+   theme_classic(base_size = 20) +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+}
 
 ## FigS3A by SCAN-seq
 
