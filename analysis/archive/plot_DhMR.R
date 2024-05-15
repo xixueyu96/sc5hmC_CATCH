@@ -42,9 +42,6 @@ pdf("viz/FigS4A.RhML_RDhML.5k.pdf", width = 5, height = 5)
 egg::ggarrange(p5,p6,nrow = 1)
 dev.off()
 
-##---------------------find active demethylated region & annotate---------------------
-
-
 
 ##---------------------plot 5hmC abundance in WT and TETcKO late zygote and 2-cell---------------------
 LZto2C <- plot_dt %>% filter(cmp=="LZY->2C") %>%
@@ -135,4 +132,251 @@ ggsave(
   "viz/WT_TET3cKO.LZY_to_2C.DhmR.sc_5k.abundance.pdf",
   width = 8, height = 6
 )
+
+##-------------------- plot 5mC in DhMR------------------
+plot_5mc_5hmC_ratio <- function(stage_pair){
+
+  cmp_list <- colnames(mc_df)[-c(1:3)]
+  names(cmp_list) <- c("ZY", "2C", "4C", "8C", "Morula", "Blast")
+
+  pre_stage <- cmp_list[strsplit(stage_pair, "->")[[1]][1]]
+  pro_stage <- cmp_list[strsplit(stage_pair, "->")[[1]][2]]
+
+  in_fn <- file.path(
+    "data/processed", paste0(
+      gsub("->", "to", stage_pair),
+      ".DhMR_5mC_ratio.WGBS_GSR.rds"
+    )
+  )
+
+  mc_DhMR_df <- readRDS(in_fn)
+
+  mc_DhMR_df %<>%
+    filter(get(pre_stage)>0 & meth_g1>0 & meth_g2 > 0 & get(pro_stage) >0) %>%
+    mutate(
+      ratio_5hmC = log2((meth_g2) / (meth_g1) ), ## 5hmC
+      ratio_5mC = log2((get(pro_stage)) / (get(pre_stage)) )) %>% ## 5mC
+    mutate(
+      demeth = case_when(
+        ratio_5hmC > -1 & ratio_5mC < -1 ~ "active_de",
+        TRUE ~ "other")
+    )
+
+  gc()
+
+  # library(ggpubr)
+
+  fill_pal <- c("stable"="grey", "decreasing"="#74b1d8", "increasing"="#df6c77")
+  fill_pal <- c("other"="grey", "active_de"="#df6c77")
+
+  plot1 <- ggplot(mc_DhMR_df, aes(x = ratio_5hmC, y = ratio_5mC, color = category)) +
+    # geom_point(aes(color = demeth), size = 0.1, shape=21) +
+    geom_point(aes(color = category), size = 0.1, shape=21) +
+    # geom_density2d(aes(color=demeth), size=1) +
+    geom_density2d(aes(color=category), size=1) +
+    # geom_rug() +
+    # geom_hline(yintercept = log2(1+1), linetype="longdash") +
+    geom_hline(yintercept = log2(0.5), linetype="longdash") +
+    # geom_vline(xintercept = c(log2(1.5), log2(3)), linetype="longdash") +
+    geom_vline(xintercept = log2(0.5), linetype="longdash") +
+    labs(y="logFC of 5mC", x="logFC of 5hmC") +
+    scale_color_manual(values = fill_pal) +
+    ylim(c(-2.5,2.5)) +
+    labs(title = stage_pair) +
+    theme_bw(base_size = 15) + theme(
+      aspect.ratio = 1,
+      panel.grid = element_blank(),
+      legend.position = "none",
+      plot.title = element_text(hjust = .5))
+
+  p2 <- ggExtra::ggMarginal(plot1, groupColour = TRUE, groupFill = TRUE)
+  print(p2)
+
+  plot_time <- strsplit(as.character(Sys.time()), " ")[[1]][1]
+
+  ggsave(
+    plot = p2, width = 5, height = 5, units = "in", dpi=320,
+    filename = paste(
+      "viz/DhMR_5mC_ratio.WGBS_GSR",
+      plot_time,
+      gsub("->", "to", stage_pair),
+      "pdf", sep = ".")
+  )
+
+  cor_res <- cor.test(tmp_df$ratio_5hmC, tmp_df$ratio_5mC)
+  print(cor_res)
+
+}
+
+lapply(
+  c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
+  plot_5mc_5hmC_ratio
+)
+
+##---------------------flux of DhMR---------------------
+
+# remotes::install_github("davidsjoberg/ggsankey")
+# library(ggsankey)
+library(ggplot2)
+library(dplyr)
+library(ggalluvial)
+
+plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+
+sankey_df <- plot_dt %>%
+  # filter(category!="stable") %>%
+  mutate(pos=paste0(chr, ":", start, "-", end)) %>%
+  dplyr::select(pos, cmp, category) %>%
+  tidyr::spread(key = pos, value = category) %>%
+  tibble::column_to_rownames("cmp") %>% t
+
+pal <- c("stable"="#329cc8","increasing"="#ee6300","decreasing"="#97ca5b", NA="grey")
+
+sankey_long <- sankey_df %>%
+  as.data.frame() %>%
+  dplyr::select(`LZY->2C`,`2C->4C`, `4C->8C`, `8C->Morula`, `Morula->Blast`) %>%
+  filter(if_all(everything(), ~ !is.na(.))) %>%
+  group_by(`LZY->2C`,`2C->4C`, `4C->8C`, `8C->Morula`, `Morula->Blast`) %>%
+  summarise(comb=n())
+
+## convert NA to no_cover
+sankey_long %>%
+  filter(comb > 10) %>%
+  ggplot(
+    aes(
+      # axis1 = `Sperm->EZY`,
+      axis1 = `LZY->2C`,
+      axis2 = `2C->4C`,
+      axis3 = `4C->8C`,
+      axis4 = `8C->Morula`,
+      axis5 = `Morula->Blast`,
+      y = comb)) +
+  geom_flow(aes(fill=after_stat(stratum))) +
+  geom_stratum(aes(fill=after_stat(stratum)), color="white",width = 1/4) +
+  scale_fill_manual(values = pal) +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5),
+    labels = c("LZY->2C", "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast")) +
+  # geom_text(stat = "stratum",
+  #           aes(label = after_stat(stratum))) +
+  theme_alluvial(base_size = 15) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  "viz/Fig4B.DhMR_flux.5k.pdf",
+  width = 8,
+  height = 4
+)
+
+
+##---------------------active DhMR (rGREAT)---------------------
+
+library(rGREAT)
+library(GenomicRanges)
+library(dplyr)
+
+lapply(
+
+  c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
+
+  function(x){
+    # stage_pair <- "2C->4C"
+
+    in_fn <- file.path(
+      "data/processed", paste0(
+        gsub("->", "to", x),
+        ".DhMR_5mC_ratio.WGBS_GSR.rds"
+      )
+    )
+
+    tmp_df <- readRDS(in_fn)
+
+    sub_gr <- tmp_df %>%
+      filter(meth_g2 > 0.5 * meth_g1) %>%
+      dplyr::select(chr, start, end) %>%
+      makeGRangesFromDataFrame()
+
+    job <- submitGreatJob(
+      sub_gr,species="mm10",
+      rule = "basalPlusExt",
+      request_interval = 50
+    )
+
+    # res_great <- plotRegionGeneAssociationGraphs(job)
+    tb_great <- getEnrichmentTables(job)
+    # View(tb_great$`GO Biological Process`)
+    ## save result
+    out_fn <- file.path(
+      "data/processed",
+      paste0(gsub("->", "to", x),".DhMR_GREAT.tsv"
+    ))
+
+    write.table(
+      tb_great$`GO Biological Process`, out_fn,
+      col.names = T, row.names = F, sep = "\t", quote = F
+    )
+  }
+)
+
+
+##---------------------active DhMR (LOLA)---------------------
+library(circlize)
+library(EnrichedHeatmap)
+library(LOLA)
+
+## generate control dataset
+chr_df <-  read.chromInfo(species="mm10")$df
+chr_gr <- GRanges(seqnames = chr_df[, 1], ranges = IRanges(chr_df[, 2] + 1, chr_df[, 3]))
+chr_window <- makeWindows(chr_gr, w = 5e3)
+
+## reference dataset
+regionDB <- loadRegionDB(
+  "/mnt/f/packages/LOLACore/mm10",
+  collections = "codex"
+)
+
+lapply(
+
+  c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
+
+  function(x){
+
+    # stage_pair <- "2C->4C"
+    in_fn <- file.path(
+      "data/processed", paste0(
+        gsub("->", "to", x),
+        ".DhMR_5mC_ratio.WGBS_GSR.rds"
+      )
+    )
+
+    tmp_df <- readRDS(in_fn)
+
+    sub_gr <- tmp_df %>%
+      filter(meth_g2 > 0.5 * meth_g1) %>%
+      dplyr::select(chr, start, end) %>%
+      makeGRangesFromDataFrame()
+
+    userSets <- GRangesList(sub_gr)
+    names(userSets) <- x
+
+    ## calc enrichment
+    locResults <- runLOLA(
+      userSets, chr_window, regionDB,
+      minOverlap = 1, direction = "enrichment"
+    )
+
+    ## save result
+    out_fn <- file.path(
+      "data/processed",
+      paste0(gsub("->", "to", x),".DhMR_LOLA.tsv"
+    ))
+
+    write.table(
+      locResults, out_fn,
+      col.names = T, row.names = F, sep = "\t", quote = F
+    )
+  }
+)
+
+
 

@@ -2,31 +2,29 @@ library(magrittr)
 library(dplyr)
 library(ggplot2)
 
-plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
-
-mc_df <- read.table(
-  "data/source/WGBS_GSR.5000_1X.merged.bed",
-  header = T, stringsAsFactors = F
-)
+# plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+#
+# mc_df <- read.table(
+#   "data/source/WGBS_GSR.5000_1X.merged.bed",
+#   header = T, stringsAsFactors = F
+# )
 
 plot_5mc_5hmC_ratio <- function(stage_pair){
 
   cmp_list <- colnames(mc_df)[-c(1:3)]
   names(cmp_list) <- c("ZY", "2C", "4C", "8C", "Morula", "Blast")
 
-  # stage_pair <- "Morula->Blast"
-
-  tmp_df <- plot_dt %>%
-    filter(cmp==stage_pair) %>%
-    inner_join(
-      # mc_df %>% mutate(End=Pos+5e3-1),
-      mc_df %>% mutate(chr=paste0("chr", chrom)),
-      by = c("chr","end")
-      # mc_df, by = c("chr"="chr", "end"="end")
-    )
-
   pre_stage <- cmp_list[strsplit(stage_pair, "->")[[1]][1]]
   pro_stage <- cmp_list[strsplit(stage_pair, "->")[[1]][2]]
+
+  in_fn <- file.path(
+    "data/processed", paste0(
+      gsub("->", "to", stage_pair),
+      ".DhMR_5mC_ratio.WGBS_GSR.rds"
+    )
+  )
+
+  tmp_df <- readRDS(in_fn)
 
   tmp_df %<>%
     filter(get(pre_stage)>0 & meth_g1>0 & meth_g2 > 0 & get(pro_stage) >0) %>%
@@ -47,10 +45,10 @@ plot_5mc_5hmC_ratio <- function(stage_pair){
   fill_pal <- c("other"="grey", "active_de"="#df6c77")
 
   plot1 <- ggplot(tmp_df, aes(x = ratio_5hmC, y = ratio_5mC, color = category)) +
-    geom_point(aes(color = demeth), size = 0.1, shape=21) +
-    # geom_point(aes(color = category), size = 0.1, shape=21) +
-    geom_density2d(aes(color=demeth), size=1) +
-    # geom_density2d(aes(color=category), size=1) +
+    # geom_point(aes(color = demeth), size = 0.1, shape=21) +
+    geom_point(aes(color = category), size = 0.1, shape=21) +
+    # geom_density2d(aes(color=demeth), size=1) +
+    geom_density2d(aes(color=category), size=1) +
     # geom_rug() +
     # geom_hline(yintercept = log2(1+1), linetype="longdash") +
     geom_hline(yintercept = log2(0.5), linetype="longdash") +
