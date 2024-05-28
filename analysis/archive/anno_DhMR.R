@@ -240,29 +240,41 @@ if(F){
       tmp_df <- readRDS(in_fn)
 
       sub_gr <- tmp_df %>%
-        filter(meth_g2 > 0.5 * meth_g1) %>%
-        dplyr::select(chr, start, end) %>%
-        makeGRangesFromDataFrame()
+        as.data.frame() %>%
+        mutate(group = ifelse(meth_g2 > 0.5 * meth_g1, "active", "not_active")) %>%
+        # filter(meth_g2 > 0.5 * meth_g1) %>%
+        dplyr::select(chr, start, end, group) %>%
+        makeGRangesFromDataFrame(keep.extra.columns = T)
 
-      userSets <- GRangesList(sub_gr)
-      names(userSets) <- x
+      userSets <- GRangesList(
+        active = sub_gr[sub_gr$group=="active"],
+        not_active = sub_gr[sub_gr$group=="not_active"]
+      )
+      names(userSets) <- c("active", "not_active")
 
       ## calc enrichment
       locResults <- runLOLA(
-        userSets, chr_window, regionDB,
+        userSets, sub_gr, regionDB,
         minOverlap = 1, direction = "enrichment"
       )
 
-      ## save result
-      out_fn <- file.path(
-        "data/processed",
-        paste0(gsub("->", "to", x),".DhMR_LOLA.tsv"
-        ))
+      locResults %>%
+        filter(pValueLog > 2 ) %>%
+        ggplot(aes(x=description, y=oddsRatio)) +
+        geom_col(stat = "identity") +
+        facet_grid(~userSet, scales = "free", space = "free") +
+        theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
-      write.table(
-        locResults, out_fn,
-        col.names = T, row.names = F, sep = "\t", quote = F
-      )
+      # ## save result
+      # out_fn <- file.path(
+      #   "data/processed",
+      #   paste0(gsub("->", "to", x),".DhMR_LOLA.tsv"
+      #   ))
+      #
+      # write.table(
+      #   locResults, out_fn,
+      #   col.names = T, row.names = F, sep = "\t", quote = F
+      # )
     }
   )
 }
@@ -326,6 +338,84 @@ if(F){
   )
 }
 
+##---------------------active DhMR (ChIPanno)---------------------
+
+if(F){
+  library(ChIPseeker)
+  library(GenomicRanges)
+  library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+  txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+  stage_list <- c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast")
+
+  active_AnnoList  <- lapply(
+
+    stage_list,
+
+    function(x){
+
+      library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+      txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+      in_fn <- file.path(
+        "data/processed", paste0(
+          gsub("->", "to", x),
+          ".DhMR_5mC_ratio.WGBS_GSR.rds"
+        )
+      )
+
+      tmp_df <- readRDS(in_fn)
+
+      sub_gr <- tmp_df %>%
+        filter(meth_g2 < 0.5 * meth_g1) %>%
+        dplyr::select(chr, start, end) %>%
+        makeGRangesFromDataFrame()
+
+      anno_res <- annotatePeak(sub_gr, TxDb=txdb, tssRegion=c(-1000, 1000))
+
+      return(anno_res)
+    }
+  )
+
+  names(active_AnnoList) <- paste0("(active)", stage_list)
+
+  notactive_AnnoList  <- lapply(
+
+    stage_list,
+
+    function(x){
+
+      library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+      txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+
+      in_fn <- file.path(
+        "data/processed", paste0(
+          gsub("->", "to", x),
+          ".DhMR_5mC_ratio.WGBS_GSR.rds"
+        )
+      )
+
+      tmp_df <- readRDS(in_fn)
+
+      sub_gr <- tmp_df %>%
+        filter(meth_g2 < 0.5 * meth_g1) %>%
+        dplyr::select(chr, start, end) %>%
+        makeGRangesFromDataFrame()
+
+      anno_res <- annotatePeak(sub_gr, TxDb=txdb, tssRegion=c(-1000, 1000))
+
+      return(anno_res)
+    }
+  )
+
+  names(notactive_AnnoList) <- paste0("(not_active)", stage_list)
+
+  dhmr_AnnoList <- c(active_AnnoList, notactive_AnnoList)
+
+  plotAnnoBar(dhmr_AnnoList)
+
+}
+
 ##---------------------active DhMR (clusterProfiler)---------------------
 
 if(F){
@@ -382,3 +472,5 @@ if(F){
     }
   )
 }
+
+

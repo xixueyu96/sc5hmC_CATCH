@@ -246,6 +246,10 @@ if(F) {
 
 if(F) {
 
+  library(dplyr)
+  library(ggpubr)
+  library(cowplot)
+
   gene_list <- c("Tet1", "Tet2", "Tet3", "Tdg", "Dnmt1", "Uhrf1", "Dnmt3a", "Dnmt3b", "Dnmt3l")
 
   rna_mtx <- readRDS('data/processed/GSE136714.aggregated_gene_matrix.Rds')
@@ -288,8 +292,8 @@ if(F) {
   barplot_fun <- function(x){
     g <- gene_list[x]
 
-    # if(grepl("Tet", g)){
-    if(T){
+    if(grepl("Tet", g)){
+    # if(T){
       p <- plot_df %>% filter(gene==g) %>%
         ggbarplot(
           x = "stage", y = "value",fill="#6967aa",
@@ -318,7 +322,7 @@ if(F) {
   do.call("plot_grid", p_list)
 
   ggsave(
-    "viz/FigS3A.5mC_related_gene_expression.240509.QJ.v2.pdf",
+    "viz/FigS3A.5mC_related_gene_expression.240526.QJ.pdf",
     width = 7.5, height = 5.7
   )
 
@@ -407,8 +411,11 @@ if(F){
       col = "variable",
       into = c("srr", "stage", NA),
       sep = "_") %>%
-    filter(!grepl("6.5D|6.6D", stage)) %>%
+    filter(!grepl("6.5D|6.6D|M2", stage)) %>%
     mutate(
+      stage = case_when(
+        stage %in% c("ICM", "TE") ~ "Blast",
+        TRUE ~ stage),
       gene_group = case_when(
         GeneSymbol %in% pos_genes ~ "Positive",
         GeneSymbol %in% neg_genes ~ "Negative",
@@ -416,12 +423,14 @@ if(F){
       )
     )
 
-  stage_level <- c("M2", "2C", "4C", "8C", "Morula", "ICM", "TE")
+  # stage_level <- c("M2", "2C", "4C", "8C", "Morula", "ICM", "TE")
+  stage_level <- c("2C", "4C", "8C", "Morula", "Blast")
 
   plot_df$stage <- factor(plot_df$stage, levels = stage_level)
 
   too_high <- quantile(plot_df$value, probs = 0.90)
 
+  ## color by cor direction
   pal <- c("Positive"="#e51d17", "Negative"="#3d51a2")
 
   plot_df %>%
@@ -439,6 +448,120 @@ if(F){
     "viz/FigS4D&E.5mC_related_gene_expression.GSR.240510.pdf",
     width = 7.5, height = 5.7
   )
+
+  ## color by stage
+  stage_pal <- c(
+    "Zygote" = "#5092c6", "2C"="#f47f70", "4C"="#f7b463",
+    "8C" = "#b5df6e", "Morula"="#f9cce4", "Blast"="#d9d9d9",
+    "Oocyte" = "#94d3c8", "Sperm" = "#da9dfd"
+  )
+
+  plot_df %>%
+    filter(value < too_high) %>%
+    ggplot(aes(x=stage, y=value))+
+    # ggbeeswarm::geom_quasirandom(aes(color=variable)) +
+    geom_violin(aes(color=stage), scale = "width", size=1) +
+    geom_boxplot(aes(color=stage), outlier.shape = NA, width=.3, size=1) +
+    facet_wrap(.~gene_group, ncol = 1) +
+    scale_color_manual(values = stage_pal) +
+    labs(y="Expression Level") +
+    egg::theme_presentation() +
+    theme(aspect.ratio = 1,
+          legend.position = "none",
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          axis.title.x = element_blank())
+
+}
+
+## FigS4D&E by Qiao Jie
+if(F){
+
+  gene_cor_res <- read.table(
+    "data/processed/Gene_wise_cor.5hmC_5mC.20240217.tsv",
+    header = T, stringsAsFactors = F
+  )
+
+  pos_genes <- gene_cor_res %>%
+    filter(pval < 0.05 & rho > 0) %>% pull(gene)
+  neg_genes <- gene_cor_res %>%
+    filter(pval < 0.05 & rho < 0) %>% pull(gene)
+
+  gene_list <- c(pos_genes, neg_genes)
+
+  rna_mtx <- readRDS('data/processed/GSE136714.aggregated_gene_matrix.Rds')
+
+  rna_mtx <- t(t(rna_mtx)/colSums(rna_mtx)*1e6)
+
+  ### normalization (count -> FPKM) ###
+  gene_anno <- readRDS('data/public/gencode.vM11.gene_length.Rds')
+
+  ## check gene symbol & ensembl
+  gene_sub <- gene_anno %>%
+    filter(symbol %in% gene_list & symbol %in% rownames(rna_mtx)) %>%
+    filter(!duplicated(symbol))
+
+  gene_length <- gene_sub %>%
+    dplyr::select(exonic.gene.sizes, symbol)
+  rownames(gene_length) <- gene_length$symbol
+
+  plot_mtx <- rna_mtx[gene_sub$symbol,]/gene_length[gene_sub$symbol,"exonic.gene.sizes"]*1e3
+
+  ### generate anno for cell ###
+  plot_df <- plot_mtx %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("gene") %>%
+    reshape2::melt("gene") %>%
+    filter(!grepl("Mixed", variable)) %>%
+    mutate(variable = gsub("_embryo|Late", "", variable)) %>%
+    tidyr::separate(
+      col = "variable",
+      into = c("stage_embryo", "cell_id"),
+      sep = "_") %>%
+    tidyr::separate(
+      col = "stage_embryo",
+      into = c("stage", "embryo"),
+      sep = "(?<=\\D)(?=\\d)") %>%
+    mutate(
+      gene_group = case_when(
+        gene %in% pos_genes ~ "Positive",
+        gene %in% neg_genes ~ "Negative",
+        TRUE ~ "Others"
+      )
+    )
+
+  stage_level <- c("Zygote", "2cell", "4cell", "8cell", "16cell", "32cell")
+
+  plot_df$stage <- factor(plot_df$stage, levels = stage_level)
+  plot_df$gene_group <- factor(plot_df$gene_group, levels = c("Positive", "Negative", "Others"))
+
+  stage_pal <- c(
+    "Zygote" = "#5092c6", "2cell"="#f47f70", "4cell"="#f7b463",
+    "8cell" = "#b5df6e", "16cell"="#f9cce4", "32cell"="#d9d9d9",
+    "Oocyte" = "#94d3c8", "Sperm" = "#da9dfd"
+  )
+
+  too_high <- quantile(plot_df$value, probs = 0.90)
+
+  plot_df %>%
+    filter(value < too_high) %>%
+    ggplot(aes(x=stage, y=value))+
+    # ggbeeswarm::geom_quasirandom(aes(color=variable)) +
+    geom_violin(aes(color=stage), scale = "width", size=1) +
+    geom_boxplot(aes(color=stage), outlier.shape = NA, width=.3, size=1) +
+    facet_wrap(.~gene_group, ncol = 1) +
+    scale_color_manual(values = stage_pal) +
+    labs(y="Expression Level") +
+    egg::theme_presentation() +
+    theme(aspect.ratio = 1,
+          legend.position = "none",
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          axis.title.x = element_blank())
+
+  ggsave(
+    "viz/Gene_wise_cor.RNA_QJ.20240526.pdf",
+    width = 4, height = 10
+  )
+
 
 }
 

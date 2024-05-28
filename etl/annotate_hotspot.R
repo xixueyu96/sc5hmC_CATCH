@@ -86,8 +86,6 @@ run_lola <- function(x, control_region=c("matched", "genomic_tile")){
     )
   }
 
-
-
   plot_time <- strsplit(as.character(Sys.time()), " ")[[1]][1]
   fn_1 <- paste0("data/processed/hotspot.lola_", x, ".", plot_time, ".rds")
   saveRDS(locResults, fn_1)
@@ -101,15 +99,17 @@ run_lola <- function(x, control_region=c("matched", "genomic_tile")){
     theme_classic(base_size = 20) +
     theme(aspect.ratio = 1)
 
+  print(p)
+
   fn_2 <- paste0("viz/hotspot.lola_", x, ".", plot_time, ".pdf")
 
-  ggsave(
-    plot = p,
-    filename = fn_2,
-    width = 10,
-    height = 10,
-    units = "cm"
-  )
+  # ggsave(
+  #   plot = p,
+  #   filename = fn_2,
+  #   width = 10,
+  #   height = 10,
+  #   units = "cm"
+  # )
 }
 
 ## repeat
