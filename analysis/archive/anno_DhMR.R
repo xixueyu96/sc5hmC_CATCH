@@ -1,3 +1,121 @@
+##---------------------flux ---------------------------
+library(ggplot2)
+library(dplyr)
+library(ggalluvial)
+library(ggsankey)
+library(data.table)
+
+plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+
+sankey_df <- plot_dt %>%
+  # filter(category!="stable") %>%
+  mutate(pos=paste0(chr, ":", start, "-", end)) %>%
+  mutate(category = ifelse(meth_g2 > 0.5*meth_g1, "active_yes", "active_no")) %>%
+  dplyr::select(pos, cmp, category) %>%
+  tidyr::spread(key = pos, value = category) %>%
+  tibble::column_to_rownames("cmp") %>% t
+
+pal <- c("active_yes"="#ee6300","active_no"="#97ca5b", "NA"="grey")
+
+sankey_long <- sankey_df %>%
+  as.data.frame() %>%
+  dplyr::select(`LZY->2C`,`2C->4C`, `4C->8C`, `8C->Morula`, `Morula->Blast`) %>%
+  filter(if_all(everything(), ~ !is.na(.))) %>%
+  group_by(`LZY->2C`,`2C->4C`, `4C->8C`, `8C->Morula`, `Morula->Blast`) %>%
+  summarise(comb=n())
+
+## convert NA to no_cover
+sankey_long %>%
+  filter(comb > 10) %>%
+  ggplot(
+    aes(
+      # axis1 = `Sperm->EZY`,
+      axis1 = `LZY->2C`,
+      axis2 = `2C->4C`,
+      axis3 = `4C->8C`,
+      axis4 = `8C->Morula`,
+      axis5 = `Morula->Blast`,
+      y = comb)) +
+  geom_flow(aes(fill=after_stat(stratum))) +
+  geom_stratum(aes(fill=after_stat(stratum)), color="white",width = 1/4) +
+  scale_fill_manual(values = pal) +
+  scale_x_continuous(
+    breaks = c(1, 2, 3, 4, 5),
+    labels = c("LZY->2C", "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast")) +
+  # geom_text(stat = "stratum",
+  #           aes(label = after_stat(stratum))) +
+  theme_alluvial(base_size = 15) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+ggsave(
+  "viz/active_DhMR_flux.5k.2024-05-28.pdf",
+  width = 8,
+  height = 4
+)
+
+head(sankey_df)
+
+consist_active_gr <- sankey_df %>%
+  as.data.frame() %>% dplyr::select(-`Sperm->EZY`) %>%
+  dplyr::filter(if_all(everything(), ~ . == "active_yes")) %>%
+  tibble::rownames_to_column("pos") %>%
+  tidyr::separate(
+    col = "pos", sep = ":|-",
+    into = c("chr", "start", "end")) %>%
+  dplyr::select(chr, start, end) %>%
+  mutate(region = "consistent_active") %>%
+  makeGRangesFromDataFrame(keep.extra.columns = T) %>% sort()
+
+
+## intersection with hotspot
+hotspot_gr <- readBed("data/source/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed")
+
+res <- ChIPpeakAnno::makeVennDiagram(
+  Peaks=list(consist_active_gr,hotspot_gr),
+  NameOfPeaks=c("consistent_active", "hotspot")
+)
+
+library(Vennerable)
+venn_cnt2venn <- function(venn_cnt){
+  n <- which(colnames(venn_cnt)=="Counts") - 1
+  SetNames=colnames(venn_cnt)[1:n]
+  Weight=venn_cnt[,"Counts"]
+  names(Weight) <- apply(venn_cnt[,1:n], 1, paste, collapse="")
+  Venn(SetNames=SetNames, Weight=Weight)
+}
+v <- venn_cnt2venn(res$vennCounts)
+plot(v)
+
+## intersection with gene_cor
+
+gene_cor_res <- read.table(
+  "data/processed/Gene_wise_cor.5hmC_5mC.20240217.tsv",
+  header = T, stringsAsFactors = F
+)
+gene_gr <- readRDS("data/handmade/mm10.genebody.rds")
+
+pos_genes <- gene_cor_res %>%
+  filter(pval < 0.05 & rho > 0) %>%
+  pull(gene)
+neg_genes <- gene_cor_res %>%
+  filter(pval < 0.05 & rho < 0) %>%
+  pull(gene)
+
+gene_gr$gene_cor <- case_when(
+  gene_gr$gene %in% pos_genes ~ "pos",
+  gene_gr$gene %in% neg_genes ~ "neg",
+  TRUE ~ "no_sig"
+)
+
+res <- ChIPpeakAnno::makeVennDiagram(
+  Peaks=list(consist_active_gr, gene_gr[gene_gr$gene_cor=="neg"]),
+  NameOfPeaks=c("consistent_active", "neg_cor")
+)
+
+v <- venn_cnt2venn(res$vennCounts)
+plot(v)
+
+
 ##---------------------active DhMR (rGREAT)---------------------
 
 if(F){
@@ -211,6 +329,7 @@ if(F){
   library(circlize)
   library(EnrichedHeatmap)
   library(LOLA)
+  library(magrittr)
 
   ## generate control dataset
   chr_df <-  read.chromInfo(species="mm10")$df
@@ -258,26 +377,76 @@ if(F){
         minOverlap = 1, direction = "enrichment"
       )
 
-      locResults %>%
-        filter(pValueLog > 2 ) %>%
-        ggplot(aes(x=description, y=oddsRatio)) +
-        geom_col(stat = "identity") +
-        facet_grid(~userSet, scales = "free", space = "free") +
-        theme(axis.text.x = element_text(angle = 90, hjust = 1))
+      group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren", "embryo"))
 
-      # ## save result
-      # out_fn <- file.path(
-      #   "data/processed",
-      #   paste0(gsub("->", "to", x),".DhMR_LOLA.tsv"
-      #   ))
-      #
-      # write.table(
-      #   locResults, out_fn,
-      #   col.names = T, row.names = F, sep = "\t", quote = F
-      # )
+      locResults %<>%
+        # filter(userSet=="active") %>%
+        tidyr::separate(
+          col = "description",
+          sep = "_",
+          into = c("annot.group", "annot.type")) %>%
+        filter(oddsRatio !=0) %>%
+        arrange(factor(annot.group, levels = group_order), oddsRatio)
+
+      locResults$annot.type <- factor(
+        locResults$annot.type,
+        levels = unique(locResults$annot.type)
+      )
+
+      p <- locResults %>%
+        # filter(userSet=="active") %>%
+        filter(annot.type!="fantom") %>%
+        filter(annot.type!="H3K9me3") %>%
+        ggplot(aes(
+          x = annot.type,
+          # y = log(oddsRatio),
+          y = oddsRatio,
+          fill = annot.group)) +
+        geom_hline(
+          yintercept = 1,
+          linetype="longdash",
+          color="black") +
+        geom_bar(
+          stat = "identity",
+          position = "dodge",
+          width = .8,
+          alpha = .7)+
+        coord_flip() +
+        facet_wrap(.~userSet, scales = "free_y") +
+        scale_fill_manual(values = c(pal[c(1,3,5)],"#a288ec")) +
+        # geom_hline(
+        #   yintercept = c(0.5, 1, 1.5),
+        #   color="white", size=2) +
+        # ylim(c(-2.5, 2.5)) +
+        theme_classic()
+      print(p)
+
+      plot_time <- strsplit(as.character(Sys.time()), " ")[[1]][1]
+
+      plot_fn <- file.path(
+        "viz",
+        paste0(gsub("->", "to", x), ".", plot_time,".DhMR_LOLA_annotatr.control_5hmC.pdf"
+        ))
+
+      ggsave(
+        plot = p, filename = plot_fn, width = 7.5, height = 5.92
+      )
+
+      ## save result
+      out_fn <- file.path(
+        "data/processed",
+        paste0(gsub("->", "to", x),".", plot_time,".DhMR_LOLA_annotatr.control_5hmC.tsv"
+        ))
+
+      write.table(
+        locResults, out_fn,
+        col.names = T, row.names = F, sep = "\t", quote = F
+      )
     }
   )
 }
+
+##---------------------active DhMR (homer)---------------------
 
 if(F){
   library(dplyr)

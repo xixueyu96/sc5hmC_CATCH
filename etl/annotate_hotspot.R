@@ -121,7 +121,7 @@ run_lola("rmsk_LTR", "matched")
 ## genomic elements
 run_lola("annotatr", "matched")
 
-locResults <- readRDS("data/processed/hotspot.lola_annotatr.2024-02-20.rds")
+locResults <- readRDS("data/processed/hotspot.lola_annotatr.2024-05-28.rds")
 
 pal <- wesanderson::wes_palette("Zissou1")
 
