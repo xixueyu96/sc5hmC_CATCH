@@ -257,8 +257,9 @@ if(F){
       tmp_df <- readRDS(in_fn)
 
       sub_gr <- tmp_df %>%
+        as.data.frame() %>%
         filter(meth_g2 > 0.5 * meth_g1) %>%
-        select(chr, start, end) %>%
+        dplyr::select(chr, start, end) %>%
         makeGRangesFromDataFrame()
 
       ## calc enrichment
@@ -317,131 +318,6 @@ if(F){
       pdf(plot_fn, width = 8.5, height = 5)
       ht_clusters(mat, cl)
       dev.off()
-    }
-  )
-}
-
-
-##---------------------active DhMR (LOLA)---------------------
-
-if(F){
-  library(dplyr)
-  library(circlize)
-  library(EnrichedHeatmap)
-  library(LOLA)
-  library(magrittr)
-
-  ## generate control dataset
-  chr_df <-  read.chromInfo(species="mm10")$df
-  chr_gr <- GRanges(seqnames = chr_df[, 1], ranges = IRanges(chr_df[, 2] + 1, chr_df[, 3]))
-  chr_window <- makeWindows(chr_gr, w = 5e3)
-
-  ## reference dataset
-  regionDB <- loadRegionDB(
-    "/mnt/f/packages/LOLACore/mm10/",
-    collections = "annotatr"
-  )
-
-  lapply(
-
-    c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
-
-    function(x){
-
-      # stage_pair <- "2C->4C"
-      in_fn <- file.path(
-        "data/processed", paste0(
-          gsub("->", "to", x),
-          ".DhMR_5mC_ratio.WGBS_GSR.rds"
-        )
-      )
-
-      tmp_df <- readRDS(in_fn)
-
-      sub_gr <- tmp_df %>%
-        as.data.frame() %>%
-        mutate(group = ifelse(meth_g2 > 0.5 * meth_g1, "active", "not_active")) %>%
-        # filter(meth_g2 > 0.5 * meth_g1) %>%
-        dplyr::select(chr, start, end, group) %>%
-        makeGRangesFromDataFrame(keep.extra.columns = T)
-
-      userSets <- GRangesList(
-        active = sub_gr[sub_gr$group=="active"],
-        not_active = sub_gr[sub_gr$group=="not_active"]
-      )
-      names(userSets) <- c("active", "not_active")
-
-      ## calc enrichment
-      locResults <- runLOLA(
-        userSets, sub_gr, regionDB,
-        minOverlap = 1, direction = "enrichment"
-      )
-
-      group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren", "embryo"))
-
-      locResults %<>%
-        # filter(userSet=="active") %>%
-        tidyr::separate(
-          col = "description",
-          sep = "_",
-          into = c("annot.group", "annot.type")) %>%
-        filter(oddsRatio !=0) %>%
-        arrange(factor(annot.group, levels = group_order), oddsRatio)
-
-      locResults$annot.type <- factor(
-        locResults$annot.type,
-        levels = unique(locResults$annot.type)
-      )
-
-      p <- locResults %>%
-        # filter(userSet=="active") %>%
-        filter(annot.type!="fantom") %>%
-        filter(annot.type!="H3K9me3") %>%
-        ggplot(aes(
-          x = annot.type,
-          # y = log(oddsRatio),
-          y = oddsRatio,
-          fill = annot.group)) +
-        geom_hline(
-          yintercept = 1,
-          linetype="longdash",
-          color="black") +
-        geom_bar(
-          stat = "identity",
-          position = "dodge",
-          width = .8,
-          alpha = .7)+
-        coord_flip() +
-        facet_wrap(.~userSet, scales = "free_y") +
-        scale_fill_manual(values = c(pal[c(1,3,5)],"#a288ec")) +
-        # geom_hline(
-        #   yintercept = c(0.5, 1, 1.5),
-        #   color="white", size=2) +
-        # ylim(c(-2.5, 2.5)) +
-        theme_classic()
-      print(p)
-
-      plot_time <- strsplit(as.character(Sys.time()), " ")[[1]][1]
-
-      plot_fn <- file.path(
-        "viz",
-        paste0(gsub("->", "to", x), ".", plot_time,".DhMR_LOLA_annotatr.control_5hmC.pdf"
-        ))
-
-      ggsave(
-        plot = p, filename = plot_fn, width = 7.5, height = 5.92
-      )
-
-      ## save result
-      out_fn <- file.path(
-        "data/processed",
-        paste0(gsub("->", "to", x),".", plot_time,".DhMR_LOLA_annotatr.control_5hmC.tsv"
-        ))
-
-      write.table(
-        locResults, out_fn,
-        col.names = T, row.names = F, sep = "\t", quote = F
-      )
     }
   )
 }
