@@ -747,8 +747,11 @@ ht5 <- EnrichedHeatmap(
   )
 )
 
-lgd <- Legend(at = names(line_col), title = "Genes",
-             type = "lines", legend_gp = gpar(col = line_col))
+lgd <- Legend(
+  at = names(line_col),
+  title = "Genes", type = "lines",
+  legend_gp = gpar(col = line_col)
+)
 
 # cgi <- import("data/public/mm10.CGI.bed.gz")
 #

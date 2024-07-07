@@ -12,32 +12,52 @@ if(F){
     collections = "annotatr"
   )
 
-  anno_active_DhMR_LOLA <- function(control=c("global", "detected"), save_file=F){
-    # control <- "detected"
+  plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+
+  anno_active_DhMR_LOLA <-
+    function(control = c("global", "detected"),
+             cmp_list = c("LZY->2C", "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
+             save_file = F) {
+      # control <- "detected"
     # save_file <- F
 
     anno_res <- lapply(
 
-      c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
+      # c("Sperm->EZY", "LZY->2C", "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
+      # c("2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"),
+      cmp_list,
 
       function(x){
 
         # stage_pair <- "2C->4C"
-        in_fn <- file.path(
-          "data/processed", paste0(
-            gsub("->", "to", x),
-            ".DhMR_5mC_ratio.WGBS_GSR.rds"
-          )
-        )
+        # in_fn <- file.path(
+        #   "data/processed", paste0(
+        #     gsub("->", "to", x),
+        #     ".DhMR_5mC_ratio.WGBS_GSR.rds"
+        #   )
+        # )
+        #
+        # tmp_df <- readRDS(in_fn)
 
-        tmp_df <- readRDS(in_fn)
+        # sub_gr <- tmp_df %>%
+        #   as.data.frame() %>%
+        #   filter(meth_g2 < meth_g1) %>%
+        #   mutate(group = ifelse(meth_g2 > 0.5 * meth_g1, "active", "not_active")) %>%
+        #   # filter(meth_g2 > 0.5 * meth_g1) %>%
+        #   dplyr::select(chr, start, end, group) %>%
+        #   makeGRangesFromDataFrame(keep.extra.columns = T)
 
-        sub_gr <- tmp_df %>%
-          as.data.frame() %>%
-          mutate(group = ifelse(meth_g2 > 0.5 * meth_g1, "active", "not_active")) %>%
+        sub_gr <- plot_dt %>%
+          filter(cmp == x) %>%
+          filter(meth_g2 < meth_g1) %>%
+          mutate(group = ifelse(meth_g2 < 0.5 * meth_g1, "active", "not_active")) %>%
           # filter(meth_g2 > 0.5 * meth_g1) %>%
           dplyr::select(chr, start, end, group) %>%
           makeGRangesFromDataFrame(keep.extra.columns = T)
+
+        print(x)
+        print(prop.table(table(sub_gr$group)))
+
 
         userSets <- GRangesList(
           active = sub_gr[sub_gr$group=="active"],
@@ -152,14 +172,27 @@ if(F){
       filter(annot.group %in% c("cpg", "genes", "encode3Ren")) %>%
       dplyr::select(userSet, annot.group, annot.type, stage_pair, oddsRatio) %>%
       group_by(userSet, annot.group, annot.type) %>%
-      reframe(min_odds = min(oddsRatio),
-              mean_odds = mean(oddsRatio),
-              max_odds = max(oddsRatio)) %>%
-      arrange(factor(annot.group, levels = group_order))
+      reframe(
+        mean_odds = mean(oddsRatio),
+        sd_value = sd(oddsRatio),
+        count = n(),
+        se_value = sd_value / sqrt(count)
+        # min_odds = min(oddsRatio),
+        # max_odds = max(oddsRatio)
+        )
+
+    anno_type_order <- anno_res_mrg %>%
+      filter(userSet=="active") %>%
+      # group_by(annot.type) %>%
+      arrange(
+        factor(annot.group, levels = rev(group_order)),
+        desc(mean_odds)) %>%
+      pull(annot.type)
 
     anno_res_mrg$annot.type <- factor(
       anno_res_mrg$annot.type,
-      levels = unique(anno_res_mrg$annot.type) %>% rev
+      # levels = unique(anno_res_mrg$annot.type) %>% rev
+      levels = anno_type_order
     )
 
     anno_res_mrg$userSet <- factor(
@@ -175,7 +208,8 @@ if(F){
         aes(y = mean_odds, color = userSet),
         position = position_dodge(width = 2 / 3)) +
       geom_errorbar(
-        aes(ymin = min_odds, ymax = max_odds, color = userSet),
+        # aes(ymin = min_odds, ymax = max_odds, color = userSet),
+        aes(ymin = mean_odds-se_value, ymax = mean_odds+se_value, color = userSet),
         position = position_dodge(width = 2 / 3), width = 0) +
       scale_color_manual(
         values = active_pal,
@@ -189,7 +223,7 @@ if(F){
             axis.title.x = element_blank(),
             axis.text.x = element_text(angle = 45, hjust = 1),
             aspect.ratio = 1/3)
-    # print(p)
+    print(p)
     return(p)
   }
 
@@ -199,7 +233,17 @@ if(F){
   cowplot::plot_grid(p1, p2, ncol = 1)
 
   ggsave(
-    "viz/Active_DhMR.anno_LOLA.240614.pdf",
+    "viz/Active_DhMR.cleavage.anno_LOLA.240706.pdf",
+    width = 8.54, height = 5.71, units = "in"
+  )
+
+  p1 <- anno_active_DhMR_LOLA(control = "global", cmp_list = c("Sperm->EZY"))
+  p2 <- anno_active_DhMR_LOLA(control = "detected", cmp_list = c("Sperm->EZY"))
+
+  cowplot::plot_grid(p1, p2, ncol = 1)
+
+  ggsave(
+    "viz/Active_DhMR.SpermtoEZY.anno_LOLA.240706.pdf",
     width = 8.54, height = 5.71, units = "in"
   )
 }
