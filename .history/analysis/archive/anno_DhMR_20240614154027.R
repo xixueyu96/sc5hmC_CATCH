@@ -66,6 +66,7 @@ consist_active_gr <- sankey_df %>%
   mutate(region = "consistent_active") %>%
   makeGRangesFromDataFrame(keep.extra.columns = T) %>% sort()
 
+
 ## intersection with hotspot
 hotspot_gr <- readBed("data/source/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed")
 
