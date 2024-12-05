@@ -264,7 +264,13 @@ sankey_long %>%
 
 ggsave(
   "viz/Fig4B.DhMR_flux.5k.pdf",
-  width = 8,
-  height = 4
+  width = 8, height = 4
 )
+
+plot_dt %>%
+  filter(lfc_meth < 0) %>%
+  mutate(pos=paste0(chr, ":", start, "-", end)) %>%
+  mutate(category_2 = ifelse(meth_g2 <= 0.5*meth_g1, "yes", "no")) %>%
+  group_by(cmp, category_2) %>%
+  reframe(n=n())
 
