@@ -1,3 +1,4 @@
+# BiocManager::install("LOLA")
 library(LOLA)
 library(dplyr)
 library(ggplot2)
@@ -48,7 +49,7 @@ export_gr(ab_gr, fn = "data/public/mm10.AB_compart.bed")
 run_lola <- function(x, control_region=c("matched", "genomic_tile")){
 
   regionDB <- loadRegionDB(
-    "/mnt/f/packages/LOLACore/mm10/",
+    "F:/packages/LOLACore/mm10/",
     collections = x
   )
 
@@ -95,7 +96,7 @@ run_lola <- function(x, control_region=c("matched", "genomic_tile")){
     ggplot(aes(x=oddsRatio, y=-log10(qValue)))+
     geom_point(size=2, shape=21, fill="#f79c56")+
     ggrepel::geom_text_repel(
-      aes(label=label),box.padding = 0.5, max.overlaps =5)+
+      aes(label=label),box.padding = 0.5, max.overlaps =Inf)+
     theme_classic(base_size = 20) +
     theme(aspect.ratio = 1)
 
@@ -114,8 +115,23 @@ run_lola <- function(x, control_region=c("matched", "genomic_tile")){
 
 ## repeat
 run_lola("rmsk_gene", "matched")
+run_lola("rmsk_family", "matched")
 run_lola("rmsk_LINE", "matched")
 run_lola("rmsk_LTR", "matched")
+
+## add evolutionary age
+locResults <- readRDS("data/processed/hotspot.lola_rmsk_LTR.2025-02-11.rds")
+
+mouse_TE_age_LTR <- mouse_TE_age_filtered %>%
+  group_by(name, repClass, repFamily) %>%
+  summarise(mya = mean(mya)) %>%
+  arrange(mya) %>%
+  filter(repClass=="LTR")
+
+locResults <- locResults %>%
+  left_join(mouse_TE_age_LTR, by=c("description"="name")) %>%
+  arrange(mya)
+
 
 
 ## genomic elements
@@ -123,7 +139,7 @@ run_lola("annotatr", "matched")
 
 locResults <- readRDS("data/processed/hotspot.lola_annotatr.2024-05-28.rds")
 
-pal <- wesanderson::wes_palette("Zissou1")
+# pal <- wesanderson::wes_palette("Zissou1")
 
 group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren", "embryo"))
 
