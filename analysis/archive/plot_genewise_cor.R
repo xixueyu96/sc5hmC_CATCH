@@ -1,5 +1,7 @@
 library(dplyr)
 library(ggplot2)
+library(ggpubr)
+library(egg)
 
 gene_cor_res <- read.table(
   "data/processed/Gene_wise_cor.5hmC_5mC.20240217.tsv",
@@ -13,7 +15,7 @@ gene_cor_res %>%
   geom_hline(yintercept = -log10(0.05), linetype="longdash") +
   geom_vline(xintercept = 0, linetype="longdash") +
   scale_color_manual(values = c("pos"="#e51d17", "neg"="#3d51a2", "none"="grey30")) +
-  theme_presentation() +
+  theme_bw(base_size = 15) +
   theme(aspect.ratio = 1)
 
 ggsave(
@@ -391,7 +393,7 @@ k36_mtx <- lapply(
 k36_mtx <-
   k36_mtx %>% purrr::reduce(function(x, y)
     base::merge(x, y, by = c("gene"))) %>%
-  filter(isUnique(gene)) %>%
+  filter(Biobase::isUnique(gene)) %>%
   filter(complete.cases(.))
 
 plot_df <- inner_join(
@@ -539,7 +541,7 @@ library(EnrichedHeatmap)
 library(rtracklayer)
 library(data.table)
 
-genes <- fread("data/public/mm10.gencode.p4.protein_coding.bed") %>%
+genes_gr <- fread("data/public/mm10.gencode.p4.protein_coding.bed") %>%
   setNames(c("seqnames", "start", "end", "ensembl", "symbol", "strand")) %>%
   distinct(symbol, .keep_all = TRUE) %>%
   filter(symbol %in% c(pos_genes, neg_genes)) %>%
@@ -550,9 +552,9 @@ genes <- fread("data/public/mm10.gencode.p4.protein_coding.bed") %>%
     seqnames = paste0("chr", seqnames)) %>%
   makeGRangesFromDataFrame(keep.extra.columns = T) %>%
   .[seqnames(.) %in% paste0("chr", c(1:19, "X", "Y", "MT")),]
-genes
+genes_gr
 
-tss <- promoters(genes, upstream = 0, downstream = 1)
+tss <- promoters(genes_gr, upstream = 0, downstream = 1)
 tss[1:5]
 
 line_col <- c("pos"="#e51d17", "neg"="#3d51a2")
@@ -662,7 +664,7 @@ ht1 <- EnrichedHeatmap(
 )
 ht1
 
-pol2_L2C <- import("data/public/GSM4010570_2cell_early_RP_rep1.mm10.bw")
+pol2_L2C <- import("data/public/GSM4010572_2cell_late_RP_rep1.mm10.bw")
 pol2_L2C
 
 mat2 <-  normalizeToMatrix(

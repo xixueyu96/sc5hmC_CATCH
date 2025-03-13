@@ -1,6 +1,8 @@
 ---
 title: "sc5hmC_hotspot_repeat"
 output: html_notebook
+author: "Sherry Xue"
+date: "2025-03-13"
 ---
 
 ```{r setup}
@@ -142,15 +144,15 @@ mouse_TE_age_summary <- mouse_TE_age %>%
   summarise(mya = mean(mya)) %>% arrange(mya)
 ```
 
-```{r run lola, fig.width=6, fig.height=4}
+```{r run lola, fig.width=8, fig.height=4}
 p1 <- run_lola("rmsk_gene", "matched", hotspot_gr, control_gr, return_plot = T, return_res = F)
 p2 <- run_lola("rmsk_family", "matched", hotspot_gr, control_gr, return_plot = T, return_res = F)
 p3 <- run_lola("rmsk_LINE", "matched", hotspot_gr, control_gr, add_age = T, return_plot = T, return_res = F)
 p4 <- run_lola("rmsk_LTR", "matched", hotspot_gr, control_gr, add_age = T, return_plot = T, return_res = F)
 
 cowplot::plot_grid(p1, p2, align = "v", nrow = 1)
-ggsave("viz/hotspot.lola_rmsk_1.250211.pdf", width = 12, height = 4)
+# ggsave("viz/hotspot.lola_rmsk_1.250211.pdf", width = 12, height = 4)
 cowplot::plot_grid(p3, p4, align = "v", nrow = 1)
-ggsave("viz/hotspot.lola_rmsk_2.250211.pdf", width = 12, height = 4)
+# ggsave("viz/hotspot.lola_rmsk_2.250211.pdf", width = 12, height = 4)
 ```
 
