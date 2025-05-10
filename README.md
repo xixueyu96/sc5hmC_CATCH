@@ -1,17 +1,11 @@
 
-## Overview
+## 📌 Overview
 
-*sc5hmC-CATCH: single-cell level estimating of 5hmC on mouse embro*
+This repository provided some analysis of sc5hmC-CATCH, which is a single-cell hydroxymethyome sequencing method, and has been applied to wild-type and conditionally knockout TET mouse pre-implantation embryos.  
 
-## Data sources
+## 📞 Contact
 
-*TK: List access info & contact info for data sources used in the project*
-
-## Contact
-
-*Author: sherry xue * 
-
-*Email: <xxhui@stu.pku.edu.cn>*
-
-*Last Modification: 2024/02/17*
-
+Author: Sherry Xue  
+Email: <xxhui@stu.pku.edu.cn>  
+Citation: https://doi.org/10.1016/j.celrep.2025.115520  
+Last Modification: 2025/05/10  
