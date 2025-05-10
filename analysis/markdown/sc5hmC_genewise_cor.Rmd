@@ -2,7 +2,7 @@
 title: "sc5hmC_genewise_correlation"
 output: html_notebook
 author: "Sherry Xue"
-date: "2025-03-13"
+date: "2025-05-10"
 ---
 
 ```{r setup}
@@ -20,10 +20,10 @@ library(data.table)
 
 ```{r lib}
 gene_list_fn <- "data/processed/Gene_wise_cor.5hmC_5mC.20240217.tsv"
-k36me3_preimplant_dir <- "data/source/h3k36me3_genebody/"
-k27me3_preimplant_dir <- "data/source/H3K27me3_genebody/"
-gene_anno_fn <- "data/public/mm10.gencode.p4.protein_coding.bed"
-cpg_density_fn <- "data/handmade/mm10.genebody.cpg_density.rds"
+k36me3_preimplant_dir <- "data/processed/h3k36me3_genebody/"
+k27me3_preimplant_dir <- "data/processed/H3K27me3_genebody/"
+gene_anno_fn <- "data/metadata/mm10.gencode.p4.protein_coding.bed"
+cpg_density_fn <- "data/metadata/mm10.genebody.cpg_density.rds"
 k4me3_2C_fn <- "data/public/GSM1845268_2cell_late_K4me3_rep1.bed"
 pol2_pn5_fn <- "data/public/GSM4010568_PN5_RP_rep1.mm10.bw"
 pol2_L2C_fn <- "data/public/GSM4010572_2cell_late_RP_rep1.mm10.bw"
@@ -36,11 +36,24 @@ rna_mtx_fn <- "data/processed/RNA.genebody_mtx.tsv"
 
 ```{r pal}
 gene_cat_pal <- c("pos"="#e51d17", "neg"="#3d51a2", "none"="grey30")
+stage_pal <- c(
+  "Zygote" = "#5092c6", "Two.cell"="#f47f70", "Four.cell"="#f7b463",
+  "Eight.cell" = "#b5df6e", "Morula"="#f9cce4", "Blast"="#d9d9d9",
+  "Oocyte" = "#94d3c8", "Sperm" = "#da9dfd"
+)
 ```
-
 
 ```{r summary of genes by category, fig.width=4, fig.height=4}
 gene_cor_res <- read.table(gene_list_fn, header = T, stringsAsFactors = F)
+
+pos_genes <- gene_cor_res %>%
+  filter(pval < 0.05 & rho > 0) %>%
+  pull(gene)
+length(pos_genes)
+neg_genes <- gene_cor_res %>%
+  filter(pval < 0.05 & rho < 0) %>%
+  pull(gene)
+length(neg_genes)
 
 gene_cor_res %>%
   ggplot(aes(x=rho, y=-log10(pval)))+
@@ -103,21 +116,17 @@ plot_MO_genes <- function(genes){
   return(p)
 }
 
-plot_MO_genes(pos_genes)
-plot_MO_genes(neg_genes)
+
+plot_MO_genes(pos_genes) + 
+  ggtitle("Positively correlated genes") +
+  theme(plot.title = element_text(hjust = .5))
+plot_MO_genes(neg_genes) + 
+  ggtitle("Negatively correlated genes") +
+  theme(plot.title = element_text(hjust = .5))
 ```
 
 ```{r CpG density, fig.width=7, fig.height=4}
 cpg_density_gr <- readRDS(cpg_density_fn)
-
-pos_genes <- gene_cor_res %>%
-  filter(pval < 0.05 & rho > 0) %>%
-  pull(gene)
-length(pos_genes)
-neg_genes <- gene_cor_res %>%
-  filter(pval < 0.05 & rho < 0) %>%
-  pull(gene)
-length(neg_genes)
 
 cpg_density_gr$gene_cat <- case_when(
   cpg_density_gr$gene %in% pos_genes ~ "pos",
@@ -267,7 +276,7 @@ line_col <- gene_cat_pal[c("pos", "neg")]
 top_anno <- HeatmapAnnotation(lines = anno_enriched(gp = gpar(col = rev(line_col))))
 
 h3k4me3 <- import(k4me3_2C_fn)
-h3k4me3$score <- as.numeric(ref$name)
+h3k4me3$score <- as.numeric(h3k4me3$name)
 h3k4me3
 
 mat0 <-  normalizeToMatrix(

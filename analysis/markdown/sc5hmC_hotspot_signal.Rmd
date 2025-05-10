@@ -2,7 +2,7 @@
 title: "sc5hmC_hotspot_signal"
 output: html_notebook
 author: "Sherry Xue"
-date: "2025-03-13"
+date: "2025-05-10"
 ---
 
 ```{r setup}
@@ -11,17 +11,24 @@ knitr::opts_chunk$set(message = FALSE, warning = FALSE)
 
 library(dplyr)
 library(ggplot2)
-# library(GenomicRanges)
-# library(MatchIt)
+library(GenomicRanges)
+library(MatchIt)
 library(data.table)
+```
+
+```{r lib}
+hotspot_fn <- "data/processed/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed"
+cpg_density_fn <- "data/metadata/mm10.CpG_density.win1k.noN.rds"
+```
+
+```{r pal}
+region_pal <- c("hotspot"="#7ca9d5", "matched"="#e7df68", "other"="#e5545b")
 ```
 
 ```{r func}
 plot_hotspot_hmC <- function(hotspot_rds, y_axis_title, plot_name){
 
   merged_gr <- readRDS(hotspot_rds)
-
-  region_pal <- c("hotspot"="#7ca9d5", "matched"="#e7df68", "other"="#e5545b")
 
   merged_long <- merged_gr %>%
     as.data.table() %>%
@@ -61,12 +68,12 @@ plot_hotspot_hmC <- function(hotspot_rds, y_axis_title, plot_name){
 
 ```{r match cpg density, eval=FALSE, include=FALSE}
 ## load input
-hotspot_gr <- LOLA::readBed("data/source/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed")
+hotspot_gr <- LOLA::readBed(hotspot_fn)
 seqlevels(hotspot_gr) <- hotspot_gr %>%
   seqnames %>% unique %>% stringr::str_sort(numeric = T)
 hotspot_gr <- sort(hotspot_gr)
 
-cpg_density <- readRDS("data/handmade/mm10.CpG_density.win1k.noN.rds")
+cpg_density <- readRDS(cpg_density_fn)
 cpg_density
 
 seqlevels(cpg_density)
@@ -129,6 +136,7 @@ control_gr <- get_matches(m.out1) %>%
   subset(hotspot==0) %>%
   makeGRangesFromDataFrame()
 control_gr <- sort(control_gr)
+control_gr
 
 # saveRDS(control_gr, file = "data/processed/hotspot.cpg_density_matched.rds")
 ```

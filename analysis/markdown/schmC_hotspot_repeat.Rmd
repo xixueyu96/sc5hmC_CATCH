@@ -2,12 +2,12 @@
 title: "sc5hmC_hotspot_repeat"
 output: html_notebook
 author: "Sherry Xue"
-date: "2025-03-13"
+date: "2025-05-10"
 ---
 
 ```{r setup}
 knitr::opts_knit$set(root.dir = "F:/Gitee/sc5hmC/")
-knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+knitr::opts_chunk$set(warning = TRUE, message = TRUE)
 
 library(dplyr)
 library(LOLA)
@@ -17,9 +17,9 @@ library(GenomicRanges)
 ```
 
 ```{r lib}
-mouse_TE_JC_age_fn <- "F:/Project/sc5hmC/data/ref/mm10_TE_JCage.tsv"
+mouse_TE_JC_age_fn <- "data/public/mm10_TE_JCage.tsv"
 control_fn <- "data/processed/hotspot.cpg_density_matched.rds"
-hotspot_fn <- "data/source/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed"
+hotspot_fn <- "data/processed/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed"
 merged_fn <- "data/processed/hotspot.5hmC.1X50.240218.rds"
 ```
 
@@ -28,9 +28,19 @@ run_lola <- function(
     x, control_region = c("matched", "genomic_tile"), 
     test_gr, ctrl_gr, add_age=F,
     return_plot = TRUE, return_res = TRUE){
+  
+  # x <- "rmsk_gene"
+  # control_region <- "matched"
+  # test_gr <- hotspot_gr
+  # ctrl_gr <- control_gr
+  # return_res <- F
+  # add_age <- F
+  # return_plot <- F
 
-  regionDB <- loadRegionDB("F:/packages/LOLACore/mm10/", collections = x)
-
+  regionDB <- loadRegionDB(
+    "F:/packages/LOLACore/mm10/", 
+    collections = x, useCache = T)
+  
   userSets <- GRangesList(test_gr)
   names(userSets) <- "hotspot"
 
@@ -64,6 +74,8 @@ run_lola <- function(
       direction = "enrichment"
     )
   }
+  locResults <- locResults %>% 
+    mutate(qValue = p.adjust(10^(-pValueLog), method = "fdr"))
   
   if(add_age){
     
@@ -82,13 +94,13 @@ run_lola <- function(
             legend.position = "bottom")
   }else {
     p <- locResults %>%
-    mutate(label=ifelse(qValue < 0.05, description, "")) %>%
-    ggplot(aes(x=oddsRatio, y=-log10(qValue)))+
-    geom_point(size=2, shape=21, color="#f698b5")+
-    ggrepel::geom_text_repel(
-      aes(label=label),box.padding = 0.5, max.overlaps =Inf)+
-    theme_classic(base_size = 15) +
-    theme(aspect.ratio = 1)
+      mutate(label=ifelse(qValue < 0.05, description, "")) %>%
+      ggplot(aes(x=oddsRatio, y=-log10(qValue)))+
+      geom_point(size=2, shape=21, color="#f698b5")+
+      ggrepel::geom_text_repel(
+        aes(label=label),box.padding = 0.5, max.overlaps =Inf)+
+      theme_classic(base_size = 15) +
+      theme(aspect.ratio = 1)
   }
 
   if(!return_res & !return_plot) {
@@ -142,9 +154,10 @@ mouse_TE_age$repClass <- gsub("\\?","", mouse_TE_age$repClass)
 mouse_TE_age_summary <- mouse_TE_age %>%
   group_by(name, repClass, repFamily) %>%
   summarise(mya = mean(mya)) %>% arrange(mya)
+head(mouse_TE_age_summary)
 ```
 
-```{r run lola, fig.width=8, fig.height=4}
+```{r run lola, fig.height=4, fig.width=8, message=FALSE}
 p1 <- run_lola("rmsk_gene", "matched", hotspot_gr, control_gr, return_plot = T, return_res = F)
 p2 <- run_lola("rmsk_family", "matched", hotspot_gr, control_gr, return_plot = T, return_res = F)
 p3 <- run_lola("rmsk_LINE", "matched", hotspot_gr, control_gr, add_age = T, return_plot = T, return_res = F)

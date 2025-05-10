@@ -2,7 +2,7 @@
 title: "sc5hmC_DhMR"
 output: html_notebook
 author: "Sherry Xue"
-date: "2025-03-13"
+date: "2025-05-10"
 ---
 
 ```{r setup}
@@ -17,9 +17,9 @@ library(purrr)
 ```
 
 ```{r func}
-source("etl/merge_DHMR_lfc.R")
-source("etl/plot_DHMR.frac.R")
-source("etl/plot_RDL_RhML.R")
+source("code/scripts/merge_DHMR_lfc.R")
+source("code/scripts/plot_DHMR.frac.R")
+source("code/scripts/plot_RDL_RhML.R")
 ```
 
 ```{r pal}
@@ -31,7 +31,6 @@ category_col_list <- c("increasing"="#ee6300","decreasing"="#97ca5b")
 metilene_res <- "data/processed/DhMR.sc_5k.rds"
 tet_5hmC_abundance_fn <- "data/processed/WT_TETcKO.LZY_to_2C.DhmR.sc_5k.abundance.tsv"
 ```
-
 
 ```{r DhMR, fig.width=10, fig.height=4}
 plot_dt <- readRDS(metilene_res)
@@ -69,7 +68,7 @@ egg::ggarrange(p5, p6, nrow = 1)
 
 ```{r TETcKO, fig.width=6, fig.height=4}
 meta <- lapply(
-  list.files("data/documentation", pattern = "sample.xls", full.names = T),
+  list.files("data/metadata", pattern = "sample.xls", full.names = T),
   function(x){
     df <- read.table(x) %>% setNames("Sample") %>%
       mutate(

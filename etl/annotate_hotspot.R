@@ -6,7 +6,7 @@ library(GenomicRanges)
 
 ## load input
 control_gr <- readRDS("data/processed/hotspot.cpg_density_matched.rds")
-hotspot_gr <- readBed("data/source/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed")
+hotspot_gr <- readBed("data/processed/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed")
 merged_gr <- readRDS("data/processed/hotspot.5hmC.1X50.240218.rds")
 
 ## cpgs, genes, enhancer, histone
@@ -133,13 +133,12 @@ locResults <- locResults %>%
   arrange(mya)
 
 
-
 ## genomic elements
 run_lola("annotatr", "matched")
 
 locResults <- readRDS("data/processed/hotspot.lola_annotatr.2024-05-28.rds")
 
-# pal <- wesanderson::wes_palette("Zissou1")
+pal <- wesanderson::wes_palette("Zissou1")
 
 group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren", "embryo"))
 
