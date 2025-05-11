@@ -1,0 +1,159 @@
+---
+title: "sc5hmC_omics_cor"
+output: html_notebook
+author: "Sherry Xue"
+date: "2025-05-11"
+---
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "F:/Gitee/sc5hmC/")
+knitr::opts_chunk$set(warning = TRUE, message = FALSE)
+library(dplyr)
+library(circlize)
+library(EnrichedHeatmap)
+library(LOLA)
+library(ggplot2)
+library(magrittr)
+```
+
+```{r load data}
+regionDB <- loadRegionDB("F:/packages/LOLACore/mm10/", collections = "annotatr")
+plot_dt <- readRDS("data/processed/DhMR.sc_5k.rds")
+```
+
+```{r pal}
+active_pal <- c("not_active"="#9acb60", "active"="#e66200")
+```
+
+```{r plot, fig.width = 8.5, fig.height = 6}
+anno_active_DhMR_LOLA <- function(control = c("global", "detected")) {
+  
+  # control <- "detected"  
+  cmp_list <- c("LZY->2C", "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast")
+  group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren", "embryo"))
+
+  anno_res <- lapply(
+
+    cmp_list,
+
+    function(x){
+
+      sub_gr <- plot_dt %>%
+        filter(cmp == x) %>%
+        filter(meth_g2 < meth_g1) %>%
+        mutate(group = ifelse(meth_g2 < 0.5 * meth_g1, "active", "not_active")) %>%
+        # filter(meth_g2 > 0.5 * meth_g1) %>%
+        dplyr::select(chr, start, end, group) %>%
+        makeGRangesFromDataFrame(keep.extra.columns = T)
+
+      print(x)
+      print(prop.table(table(sub_gr$group)))
+
+      userSets <- GRangesList(
+        active = sub_gr[sub_gr$group=="active"],
+        not_active = sub_gr[sub_gr$group=="not_active"]
+      )
+      names(userSets) <- c("active", "not_active")
+
+      ## calc enrichment
+
+      if(control=="global"){
+
+        ## generate control dataset
+        chr_df <-  read.chromInfo(species="mm10")$df
+        chr_gr <- GRanges(seqnames = chr_df[, 1], ranges = IRanges(chr_df[, 2] + 1, chr_df[, 3]))
+        chr_window <- makeWindows(chr_gr, w = 5e3)
+
+        locResults <- runLOLA(
+          userSets, chr_window, regionDB,
+          minOverlap = 1, direction = "enrichment") %>%
+          mutate(stage_pair = x)
+      }
+      if(control=="detected"){
+        locResults <- runLOLA(
+          userSets, sub_gr, regionDB,
+          minOverlap = 1, direction = "enrichment")  %>%
+          mutate(stage_pair = x)
+      }
+      
+      locResults %<>%
+        # filter(userSet=="active") %>%
+        tidyr::separate(
+          col = "description", sep = "_",
+          into = c("annot.group", "annot.type")) %>%
+        filter(oddsRatio !=0) %>%
+        arrange(factor(annot.group, levels = group_order), oddsRatio)
+
+      locResults$annot.type <- factor(
+        locResults$annot.type,
+        levels = unique(locResults$annot.type)
+      )
+
+      return(locResults)
+    }
+  )
+
+  anno_res_mrg <- do.call("rbind", anno_res)
+  anno_res_mrg %<>%
+    filter(oddsRatio > 0) %>%
+    filter(annot.group %in% c("cpg", "genes", "encode3Ren")) %>%
+    dplyr::select(userSet, annot.group, annot.type, stage_pair, oddsRatio) %>%
+    group_by(userSet, annot.group, annot.type) %>%
+    reframe(
+      mean_odds = mean(oddsRatio),
+      sd_value = sd(oddsRatio),
+      count = n(),
+      se_value = sd_value / sqrt(count)
+      # min_odds = min(oddsRatio),
+      # max_odds = max(oddsRatio)
+      )
+
+  anno_type_order <- anno_res_mrg %>%
+    filter(userSet=="active") %>%
+    # group_by(annot.type) %>%
+    arrange(
+      factor(annot.group, levels = rev(group_order)),
+      desc(mean_odds)) %>%
+    pull(annot.type)
+
+  anno_res_mrg$annot.type <- factor(
+    anno_res_mrg$annot.type,
+    levels = anno_type_order
+  )
+
+  anno_res_mrg$userSet <- factor(
+    anno_res_mrg$userSet,
+    levels = c("not_active", "active")
+  )
+
+  p <- anno_res_mrg %>%
+    ggplot(aes(x=annot.type))+
+    geom_point(
+      aes(y = mean_odds, color = userSet),
+      position = position_dodge(width = 2 / 3)) +
+    geom_errorbar(
+      # aes(ymin = min_odds, ymax = max_odds, color = userSet),
+      aes(ymin = mean_odds-se_value, ymax = mean_odds+se_value, color = userSet),
+      position = position_dodge(width = 2 / 3), width = 0) +
+    scale_color_manual(
+      values = active_pal,
+      name = paste0("ctrl:", control)) +
+    # scale_color_discrete(name = paste0("control:", control)) +
+    geom_hline(yintercept = 1, linetype="longdash") +
+    geom_vline(xintercept = c(6.5, 10.5), linetype="longdash", color="#a9aaad") +
+    labs(y= "Odds Ratio") +
+    theme_bw(base_size = 15) +
+    theme(panel.grid = element_blank(),
+          axis.title.x = element_blank(),
+          axis.text.x = element_text(angle = 45, hjust = 1),
+          aspect.ratio = 1/3)
+  # print(p)
+  return(p)
+}
+
+p1 <- anno_active_DhMR_LOLA(control = "global")
+p2 <- anno_active_DhMR_LOLA(control = "detected")
+
+cowplot::plot_grid(p1, p2, ncol = 1)
+```
+

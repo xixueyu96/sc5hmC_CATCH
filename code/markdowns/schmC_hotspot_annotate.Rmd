@@ -1,0 +1,105 @@
+---
+title: "sc5hmC_hotspot_annotate"
+output: html_notebook
+author: "Sherry Xue"
+date: "2025-05-10"
+---
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "F:/Gitee/sc5hmC/")
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+library(LOLA)
+library(dplyr)
+library(ggplot2)
+library(GenomicRanges)
+library(EnrichedHeatmap)
+```
+
+```{r pal}
+group_pal <- c("#3B9AB2", "#EBCC2A", "#F21A00", "#a288ec")
+```
+
+```{r load data}
+control_gr <- readRDS("data/processed/hotspot.cpg_density_matched.rds")
+hotspot_gr <- readBed("data/processed/1111_hmC_ratio_1X50.merge.1k.v5s4.hotspot.bed")
+merged_gr <- readRDS("data/processed/hotspot.5hmC.1X50.240218.rds")
+```
+
+```{r run LOLA}
+## load data
+regionDB <- loadRegionDB("F:/packages/LOLACore/mm10/", collections = "annotatr")
+userSets <- GRangesList(hotspot_gr)
+names(userSets) <- "hotspot"
+
+locResults <- runLOLA(
+  userSets,
+  # merged_gr,
+  c(hotspot_gr, control_gr),
+  regionDB,
+  minOverlap = 1,
+  direction = "enrichment"
+)
+locResults <- locResults %>% 
+    mutate(qValue = p.adjust(10^(-pValueLog), method = "fdr"))
+
+locResults
+```
+
+```{r plot, fig.width=5, fig.height=6}
+group_order <- rev(c("genes", "cpg", "enhancer", "encode3Ren", "embryo"))
+
+plot_df <- locResults %>% 
+  tidyr::separate(
+    col = "description",
+    sep = "_",
+    into = c("annot.group", "annot.type")) %>%
+  filter(oddsRatio !=0) %>%
+  arrange(factor(annot.group, levels = group_order), oddsRatio)
+
+plot_df$annot.type <- factor(
+  plot_df$annot.type,
+  levels = plot_df$annot.type
+)
+
+plot_df %>%
+  filter(annot.type != "fantom") %>%
+  filter(annot.type != "H3K9me3") %>%
+  ggplot(aes(x = annot.type, # y = log(oddsRatio),
+             y = oddsRatio, fill = annot.group)) +
+  geom_bar(
+    stat = "identity", position = "dodge",
+    width = .8, alpha = .7) +
+  coord_flip() +
+  scale_fill_manual(values = group_pal) +
+  geom_hline(yintercept = 1,
+             linetype = "longdash",
+             color = "black") +
+  theme_classic()
+
+# ggsave(
+#   "viz/hotspot.lola_annotatr.2024-02-20.pdf",
+#   width = 5, height = 6
+# )
+```
+
+```{r H3K9me3}
+h3k9me3_gr <- LOLA::readBed("data/processed/H3K9me3_GSR.broadPeak.stable.bed")
+
+hotspot_hit <- findOverlaps(hotspot_gr, h3k9me3_gr)
+control_hit <- findOverlaps(control_gr, h3k9me3_gr)
+
+chi_input <- matrix(c(
+  length(hotspot_hit@from),
+  length(control_hit@from),
+  length(hotspot_gr) - length(hotspot_hit@from),
+  length(control_gr) - length(control_hit@from)
+), nrow = 2)
+rownames(chi_input) <- c("hotspot_hit", "control")
+colnames(chi_input) <- c("hit", "not_hit")
+
+chisq.test(chi_input)
+
+chi_input[1,1]*chi_input[2,2]/(chi_input[1,2]*chi_input[2,1])
+```
+

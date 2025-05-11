@@ -1,0 +1,143 @@
+---
+title: "sc5hmC_DhMR"
+output: html_notebook
+author: "Sherry Xue"
+date: "2025-05-10"
+---
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "F:/Gitee/sc5hmC/")
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+
+library(dplyr)
+library(ggplot2)
+library(broom)
+library(tidyr)
+library(purrr)
+```
+
+```{r func}
+source("code/scripts/merge_DHMR_lfc.R")
+source("code/scripts/plot_DHMR.frac.R")
+source("code/scripts/plot_RDL_RhML.R")
+```
+
+```{r pal}
+type_col_list <- c("stable"="#329cc8","changing"="#f6bb46")
+category_col_list <- c("increasing"="#ee6300","decreasing"="#97ca5b")
+```
+
+```{r lib}
+metilene_res <- "data/processed/DhMR.sc_5k.rds"
+tet_5hmC_abundance_fn <- "data/processed/WT_TETcKO.LZY_to_2C.DhmR.sc_5k.abundance.tsv"
+```
+
+```{r DhMR, fig.width=10, fig.height=4}
+plot_dt <- readRDS(metilene_res)
+
+cmp_list <- c("Sperm","LZY","2C","4C","8C","Morula")
+names(cmp_list) <- c("EZY","2C","4C","8C","Morula", "Blast")
+levels <- c(
+  "Sperm->EZY","LZY->2C",
+  "2C->4C", "4C->8C", "8C->Morula", "Morula->Blast"
+)
+
+p2 <- plot_DHMR.frac.stable(plot_dt, save_file = F, level = rev(levels))
+p2 <- p2 + theme(axis.text.y = element_blank())
+p1 <- plot_DHMR.abs.stable(plot_dt, save_file = F, level = rev(levels))
+p4 <- plot_DHMR.frac.changing(plot_dt, save_file = F, level = rev(levels))
+p4 <- p4 + theme(axis.text.y = element_blank())
+p3 <- plot_DHMR.abs.changing(plot_dt, save_file = F, level = rev(levels))
+p3 <- p3 + theme(axis.text.y = element_blank())
+
+# pdf("viz/Fig4B.DhMR.5k.pdf", width = 10, height = 4)
+egg::ggarrange(p1, p2, p3, p4, nrow = 1)
+# dev.off()
+```
+
+```{r RDL & RdML, fig.width=5, fig.height=5}
+p5 <- plot_RDL.v2(plot_dt, save_file = F, level = rev(levels))
+# p5 <- p5+theme(axis.text.y = element_blank())
+p6 <- plot_RhML.v2(plot_dt, save_file = F, level = rev(levels))
+p6 <- p6 + theme(axis.text.y = element_blank())
+
+# pdf("viz/FigS4A.RhML_RDhML.5k.pdf", width = 5, height = 5)
+egg::ggarrange(p5, p6, nrow = 1)
+# dev.off()
+```
+
+```{r TETcKO, fig.width=6, fig.height=4}
+meta <- lapply(
+  list.files("data/metadata", pattern = "sample.xls", full.names = T),
+  function(x){
+    df <- read.table(x) %>% setNames("Sample") %>%
+      mutate(
+        Group = gsub(".sample.xls", "", basename(x))
+      )}) %>% do.call("rbind", .)
+
+# meta <- do.call("rbind", meta)
+
+DhmR_5hmC_abundance <- read.table(tet_5hmC_abundance_fn, header = F, stringsAsFactors = F) %>%
+  setNames(c("Sample", "category", "abundance")) %>% inner_join(meta, by = "Sample")
+
+DhmR_5hmC_abundance$category <- factor(
+  DhmR_5hmC_abundance$category,
+  levels = c("stable", "decreasing", "increasing")
+)
+
+DhmR_5hmC_abundance$Group <- factor(
+  DhmR_5hmC_abundance$Group,
+  levels = c("WT_LZ", "TET3cKO_LZ", "WT_2C", "TET3cKO_2C")
+)
+
+df.summary <- DhmR_5hmC_abundance %>%
+  group_by(category, Group) %>%
+  summarise(
+    # sd = sd(abundance, na.rm = TRUE),
+    se = sd(abundance) / sqrt(length(abundance)),
+    abundance = mean(abundance)
+  )
+df.summary
+
+df.test <- DhmR_5hmC_abundance %>%
+  separate(
+    col = "Group",
+    sep = "_",
+    into = c("Group", "Stage")) %>%
+  nest(data = c(-category, -Stage)) %>%
+  mutate(data = map(data, ~ wilcox.test(abundance ~ Group, data = .x)),
+         data = map(data, tidy)) %>%
+  unnest(data) %>%
+  mutate(
+    qvalue = p.adjust(p.value, "fdr")
+  )
+df.test
+
+# write.table(
+#   df.test, file = "data/processed/WT_TETcKO.LZY_to_2C.DhmR.sc_5k.abundance_test.tsv",
+#   col.names = T, row.names = F, sep = "\t", quote = F
+# )
+
+df.summary %>%
+  filter(category!="stable") %>%
+  ggplot(aes(category, abundance, fill=Group)) +
+  # geom_col(fill = "lightgray", color = "black") +
+  geom_errorbar(
+    aes(ymin = abundance-se, ymax = abundance+se),
+    position = position_dodge(0.9), width=.5)+
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(y="5hmCpG levels", x="Dynamic DhMRs") +
+  theme_classic(base_size = 15) +
+  theme(aspect.ratio = 0.75)
+
+# ggsave(
+#   "viz/WT_TET3cKO.LZY_to_2C.DhmR.sc_5k.abundance.pdf",
+#   width = 8, height = 6
+# )
+```
+
+
+```{r}
+sessionInfo()
+```
+
