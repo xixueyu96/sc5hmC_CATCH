@@ -5,7 +5,6 @@ This repository provided some analysis of sc5hmC-CATCH, which is a single-cell h
 
 ## 📞 Contact
 
-Author: Sherry Xue  
 Email: <xxhui@stu.pku.edu.cn>  
 Citation: https://doi.org/10.1016/j.celrep.2025.115520  
 Last Modification: 2025/05/10  

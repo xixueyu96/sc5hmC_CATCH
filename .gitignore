@@ -2,7 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
-orig_data/*
 **/analysis/*
 **/etl/*
 **/viz/*
+code/markdowns/*html
